@@ -64,7 +64,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             articles.append({
                 "title": re.sub("<.*?>", "", title),
                 "link": item["link"],
-                "pubDate": pub_date.strftime("%Y-%m-%d"),
+                "date": pub_date.strftime("%Y-%m-%d"),
                 "source": "Naver"
             })
     return articles[:limit]
@@ -75,7 +75,6 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
         with cols[idx]:
             with st.container():
                 st.markdown(f"### 📁 {keyword}")
-
                 articles_to_show = articles[:show_limit.get(keyword, 5)]
 
                 for article in articles_to_show:
@@ -98,29 +97,10 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
                         expanded_keywords.add(keyword)
                         show_limit[keyword] += 5
 
-# 초기값
-if "show_limit" not in st.session_state:
-    st.session_state.show_limit = {}
-
-if "expanded_keywords" not in st.session_state:
-    st.session_state.expanded_keywords = set()
-
-# 초기화
-for keyword in search_results.keys():
-    if keyword not in st.session_state.show_limit:
-        st.session_state.show_limit[keyword] = 5
-
-# 함수 호출
-render_articles_columnwise(
-    search_results,
-    st.session_state.show_limit,
-    st.session_state.expanded_keywords
-)
-
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
 
-# --- 상단 패딩 수정 포함된 스타일 ---
+# --- 스타일 ---
 st.markdown("""
     <style>
         .stButton>button {
@@ -149,12 +129,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 헤더 표시 ---
 st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- 기본 UI ---
+# --- UI 입력 ---
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
-
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
     keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
@@ -176,27 +154,38 @@ with fav_col1:
 with fav_col2:
     fav_search_clicked = st.button("즐겨찾기로 검색")
 
+# --- 검색 결과 저장용 변수 ---
 search_results = {}
 show_limit = {}
 expanded_keywords = set()
 
+# --- 텔레그램 전송 함수 ---
+def send_to_telegram(keyword, articles):
+    if articles:
+        msg = f"*\ud83d\udd14 {keyword} 관련 상위 뉴스 5건:*\n"
+        for a in articles:
+            msg += f"- [{a['title']}]({a['link']})\n"
+        Telegram().send_message(msg)
+
+# --- 뉴스 검색 및 처리 ---
 def process_keywords(keyword_list):
     for k in keyword_list:
         if api_choice == "Naver":
             articles = fetch_naver_news(k, start_date, end_date, filters)
         else:
-            articles = []  # NewsAPI 비활성 처리 중
+            articles = []
         search_results[k] = articles
         show_limit[k] = 5
+        st.session_state.show_limit[k] = 5
         send_to_telegram(k, articles[:5])
 
-def send_to_telegram(keyword, articles):
-    if articles:
-        msg = f"*🔔 {keyword} 관련 상위 뉴스 5건:*\n"
-        for a in articles:
-            msg += f"- [{a['title']}]({a['link']})\n"
-        Telegram().send_message(msg)
+# --- 세션 상태 초기화 ---
+if "show_limit" not in st.session_state:
+    st.session_state.show_limit = {}
+if "expanded_keywords" not in st.session_state:
+    st.session_state.expanded_keywords = set()
 
+# --- 사용자 입력 처리 ---
 if search_clicked and keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
@@ -209,9 +198,11 @@ if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(fav_selected)
 
-# 더보기 동작 처리
-for keyword in expanded_keywords:
-    show_limit[keyword] += 10
+# --- 더보기 반영 ---
+for keyword in st.session_state.expanded_keywords:
+    if keyword in show_limit:
+        show_limit[keyword] += 10
 
+# --- 결과 렌더링 ---
 if search_results:
-    render_articles_columnwise(search_results, show_limit, expanded_keywords)
+    render_articles_columnwise(search_results, show_limit, st.session_state.expanded_keywords)
