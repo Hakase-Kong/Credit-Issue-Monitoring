@@ -75,20 +75,24 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
     for col, (keyword, articles) in zip(cols, results.items()):
         with col:
             with st.container():
-                st.markdown(f"#### 📂 {keyword}")
-                st.markdown('<div style="border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
+                # 카드 전체 테두리 안에 키워드부터 뉴스까지 포함
+                st.markdown(f"""
+                    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                        <h4 style='margin-top: 0;'>📂 {keyword}</h4>
+                """, unsafe_allow_html=True)
 
                 for i, article in enumerate(articles[:show_limit[keyword]]):
                     st.markdown(f"<div style='margin-bottom: 6px; font-size: 14px;'><b><a href='{article['link']}' target='_blank'>{article['title']}</a></b></div>", unsafe_allow_html=True)
                     st.markdown(f"<div style='font-size: 12px; color: gray; margin-bottom: 4px;'>{article['pubDate']} | {article['source']}</div>", unsafe_allow_html=True)
                     if i < len(articles[:show_limit[keyword]]) - 1:
-                        st.markdown("<div style='margin: 3px 0; border-top: 1px solid #eee;'></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='margin: 6px 0; border-top: 1px solid #eee;'></div>", unsafe_allow_html=True)
 
                 if show_limit[keyword] < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         expanded_keywords.add(keyword)
 
-                st.markdown('</div>', unsafe_allow_html=True)
+                # 카드 끝
+                st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
