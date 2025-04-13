@@ -69,20 +69,19 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def render_articles_columnwise(results, show_limit, expanded_keywords):
+def render_articles_columnwise(results, show_limit):
     st.markdown("### 🔍 검색 결과")
     cols = st.columns(len(results))
-    
+
     for col, (keyword, articles) in zip(cols, results.items()):
         with col:
-            # 카드 시작
-            card_html = f"""
-                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px; background-color: #f9f9f9;">
+            st.markdown(f"""
+                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9;">
                     <h4 style="margin-top: 0;">📂 {keyword}</h4>
-            """
+            """, unsafe_allow_html=True)
 
             for i, article in enumerate(articles[:show_limit[keyword]]):
-                card_html += f"""
+                st.markdown(f"""
                     <div style="margin-bottom: 12px;">
                         <div style="font-weight: bold; font-size: 14px;">
                             <a href="{article['link']}" target="_blank" style="text-decoration: none; color: #0066cc;">
@@ -93,22 +92,16 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
                             {article['pubDate']} | {article['source']}
                         </div>
                     </div>
-                """
+                """, unsafe_allow_html=True)
                 if i < len(articles[:show_limit[keyword]]) - 1:
-                    card_html += "<hr style='border: none; border-top: 1px solid #eee; margin: 6px 0;'>"
+                    st.markdown("<hr style='border: none; border-top: 1px solid #eee; margin: 6px 0;'>", unsafe_allow_html=True)
 
-            # 카드 닫기
-            card_html += "</div>"
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            # 렌더링
-            st.markdown(card_html, unsafe_allow_html=True)
-
-            # 더보기 버튼
             if show_limit[keyword] < len(articles):
                 if st.button("더보기", key=f"more_{keyword}"):
                     show_limit[keyword] += 5
                     st.experimental_rerun()
-
 
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
