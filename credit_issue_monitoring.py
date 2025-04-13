@@ -28,17 +28,6 @@ class Telegram:
     def sendMessage(self, message):
         self.bot.sendMessage("YOUR_TELEGRAM_CHAT_ID", message, parse_mode="Markdown")
 
-def summarize_article(url):
-    try:
-        res = requests.get(url, timeout=5)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        content = ' '.join([p.get_text() for p in paragraphs])
-        sentences = re.split(r'(?<=[.!?]) +', content)
-        return ' '.join(sentences[:2]) if sentences else "요약 없음"
-    except:
-        return "요약 불가"
-
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
     return all(re.search(k, content) for k in selected_keywords)
@@ -77,13 +66,11 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None):
             if filters and not filter_by_issues(title, desc, filters):
                 continue
 
-            summary = summarize_article(item["link"])
             articles.append({
                 "title": title,
                 "link": item["link"],
                 "pubDate": pub_date_obj.strftime("%Y-%m-%d %H:%M:%S"),
-                "source": "Naver",
-                "summary": summary
+                "source": "Naver"
             })
 
     return articles
@@ -124,13 +111,11 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None):
             if filters and not filter_by_issues(title, desc, filters):
                 continue
 
-            summary = summarize_article(item["url"])
             articles.append({
                 "title": title,
                 "link": item["url"],
                 "pubDate": pub_date_obj.strftime("%Y-%m-%d %H:%M:%S"),
-                "source": item["source"]["name"],
-                "summary": summary
+                "source": item["source"]["name"]
             })
 
     return articles
@@ -143,7 +128,6 @@ def render_articles(query, articles):
     for article in articles:
         st.markdown(f"- [{article['title']}]({article['link']})")
         st.caption(f"{article['pubDate']} | {article['source']}")
-        st.write(f"_{article['summary']}_")
 
 # --- Streamlit UI 구성 ---
 st.title("📊 Credit Issue Monitoring")
@@ -154,7 +138,7 @@ start_date = st.date_input("시작일", value=None)
 end_date = st.date_input("종료일", value=None)
 filters = st.multiselect("📌 필터링 키워드 선택", all_filter_keywords)
 
-# 즐겨찾기 검색 UI 먼저 배치
+# 즐겨찾기 검색 UI
 fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords), key="fav_selectbox", default=[])
 if st.button("즐겨찾기로 검색") and fav_selected:
     with st.spinner("뉴스 검색 중..."):
@@ -162,7 +146,7 @@ if st.button("즐겨찾기로 검색") and fav_selected:
             articles = fetch_naver_news(k, start_date, end_date, filters) if api_choice == "Naver" else fetch_newsapi_news(k, start_date, end_date, filters)
             render_articles(k, articles)
 
-# 일반 키워드 검색
+# 키워드 검색
 if st.button("검색"):
     if not keywords_input:
         st.warning("키워드를 입력해주세요.")
