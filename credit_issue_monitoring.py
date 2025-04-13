@@ -162,10 +162,14 @@ expanded_keywords = set()
 # --- 텔레그램 전송 함수 ---
 def send_to_telegram(keyword, articles):
     if articles:
-        msg = f"*\ud83d\udd14 {keyword} 관련 상위 뉴스 5건:*\n"
+        msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
         for a in articles:
-            msg += f"- [{a['title']}]({a['link']})\n"
-        Telegram().send_message(msg)
+            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])  # 이모지 제거
+            msg += f"- [{title}]({a['link']})\n"
+        try:
+            Telegram().send_message(msg)
+        except Exception as e:
+            st.warning(f"텔레그램 전송 오류: {e}")
 
 # --- 뉴스 검색 및 처리 ---
 def process_keywords(keyword_list):
