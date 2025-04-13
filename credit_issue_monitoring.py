@@ -2,9 +2,6 @@ import streamlit as st
 import requests
 import re
 from datetime import datetime
-from bs4 import BeautifulSoup
-import pytz
-import time
 import concurrent.futures
 import telepot
 
@@ -12,6 +9,9 @@ import telepot
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
 NEWS_API_KEY = "3a33b7b756274540926aeea8df60637c"
+
+TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
+TELEGRAM_CHAT_ID = "-1002404027768"
 
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
@@ -23,10 +23,15 @@ if "favorite_keywords" not in st.session_state:
 
 class Telegram:
     def __init__(self):
-        self.bot = telepot.Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
+        self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
 
     def sendMessage(self, message):
-        self.bot.sendMessage("YOUR_TELEGRAM_CHAT_ID", message, parse_mode="Markdown")
+        try:
+            self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
+        except Exception as e:
+            st.error(f"텔레그램 메시지 전송 실패: {e}")
+
+telegram = Telegram()
 
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
@@ -124,10 +129,19 @@ def render_articles(query, articles):
     if not articles:
         st.markdown(f"### ❌ '{query}' 관련 뉴스 없음")
         return
+
     st.markdown(f"### 🔎 {query} 관련 뉴스")
     for article in articles:
-        st.markdown(f"- [{article['title']}]({article['link']})")
-        st.caption(f"{article['pubDate']} | {article['source']}")
+        with st.container():
+            st.markdown(f"#### [{article['title']}]({article['link']})")
+            st.caption(f"{article['pubDate']} | {article['source']}")
+            st.markdown("---")
+
+def send_articles_to_telegram(query, articles):
+    message = f"*📌 '{query}' 관련 상위 뉴스 5건*\n\n"
+    for i, article in enumerate(articles[:5], 1):
+        message += f"{i}. [{article['title']}]({article['link']})\n"
+    telegram.sendMessage(message)
 
 # --- Streamlit UI 구성 ---
 st.title("📊 Credit Issue Monitoring")
@@ -165,7 +179,10 @@ if st.button("검색"):
                             futures.append(executor.submit(fetch_newsapi_news, k, start_date, end_date, filters))
 
                     for k, future in zip(keyword_list, futures):
-                        render_articles(k, future.result())
+                        articles = future.result()
+                        render_articles(k, articles)
+                        if articles:
+                            send_articles_to_telegram(k, articles)
 
 # 즐겨찾기 추가
 if st.button("⭐ 즐겨찾기 추가"):
