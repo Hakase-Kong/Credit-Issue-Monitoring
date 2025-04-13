@@ -75,38 +75,40 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
     
     for col, (keyword, articles) in zip(cols, results.items()):
         with col:
-            # 카드 박스 전체
+            # 카드 시작
             card_html = f"""
                 <div style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 20px; background-color: #f9f9f9;">
-                    <h4 style='margin-top: 0;'>📂 {keyword}</h4>
+                    <h4 style="margin-top: 0;">📂 {keyword}</h4>
             """
 
-            # 기사들 출력
             for i, article in enumerate(articles[:show_limit[keyword]]):
-                article_block = f"""
-                    <div style='margin-bottom: 12px;'>
-                        <div style='font-weight: bold; font-size: 14px;'>
+                card_html += f"""
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-weight: bold; font-size: 14px;">
                             <a href="{article['link']}" target="_blank" style="text-decoration: none; color: #0066cc;">
                                 {article['title']}
                             </a>
                         </div>
-                        <div style='font-size: 12px; color: gray;'>
+                        <div style="font-size: 12px; color: gray;">
                             {article['pubDate']} | {article['source']}
                         </div>
                     </div>
                 """
-                card_html += article_block
                 if i < len(articles[:show_limit[keyword]]) - 1:
                     card_html += "<hr style='border: none; border-top: 1px solid #eee; margin: 6px 0;'>"
 
-            # 닫기 태그 먼저 렌더링
+            # 카드 닫기
             card_html += "</div>"
+
+            # 렌더링
             st.markdown(card_html, unsafe_allow_html=True)
 
             # 더보기 버튼
             if show_limit[keyword] < len(articles):
                 if st.button("더보기", key=f"more_{keyword}"):
-                    expanded_keywords.add(keyword)
+                    show_limit[keyword] += 5
+                    st.experimental_rerun()
+
 
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
