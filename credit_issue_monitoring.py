@@ -13,8 +13,8 @@ NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
 NEWS_API_KEY = "3a33b7b756274540926aeea8df60637c"
 
-credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
-finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
+credit_keywords = ["\uc2e0\uc721\ub4f1\uae09", "\uc2e0\uc721\ud558\ud615", "\uc2e0\uc721\uc0c1\ud615", "\ub4f1\uae09\uc870\uc815", "\ubd88\uc815\uc801", "\uadc0\uc815\uc801", "\ud3c9\uac00"]
+finance_keywords = ["\uc801\uc790", "\ud751\uc790", "\ubd80\uccb4", "\ucc28\uc785\uae08", "\ud604\uae08\ud718\ub839", "\uc601\uc5c5\uc190\uc2e4", "\uc21c\uc774\uc775", "\ubd80\ub3c4", "\ud30c\uc0b0"]
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
 
 favorite_keywords = set()
@@ -33,9 +33,9 @@ def summarize_article(url):
         paragraphs = soup.find_all('p')
         content = ' '.join([p.get_text() for p in paragraphs])
         sentences = re.split(r'(?<=[.!?]) +', content)
-        return ' '.join(sentences[:2]) if sentences else "요약 없음"
+        return ' '.join(sentences[:2]) if sentences else "\uc694\uc57d \uc5c6\uc74c"
     except:
-        return "요약 불가"
+        return "\uc694\uc57d \ubd88\uac00"
 
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
@@ -70,7 +70,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None):
                 continue
             if end_date and pub_date_obj.date() > end_date:
                 continue
-            if not re.search(rf"\b{re.escape(query)}\b", title + desc):
+            if not re.search(rf"\\b{re.escape(query)}\\b", title + desc):
                 continue
             if filters and not filter_by_issues(title, desc, filters):
                 continue
@@ -117,7 +117,7 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None):
                 continue
             if end_date and pub_date_obj.date() > end_date:
                 continue
-            if not re.search(rf"\b{re.escape(query)}\b", title + desc):
+            if not re.search(rf"\\b{re.escape(query)}\\b", title + desc):
                 continue
             if filters and not filter_by_issues(title, desc, filters):
                 continue
@@ -152,6 +152,21 @@ start_date = st.date_input("시작일", value=None)
 end_date = st.date_input("종료일", value=None)
 filters = st.multiselect("📌 필터링 키워드 선택", all_filter_keywords)
 
+# --- 즐겨찾기 관련 기능 ---
+if st.button("⭐ 즐겨찾기 추가"):
+    new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
+    favorite_keywords.update(new_keywords)
+    st.success("즐겨찾기에 추가되었습니다.")
+
+fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(list(favorite_keywords)))
+
+if fav_selected:
+    with st.spinner("뉴스 검색 중..."):
+        for k in fav_selected:
+            articles = fetch_naver_news(k, start_date, end_date, filters) if api_choice == "Naver" else fetch_newsapi_news(k, start_date, end_date, filters)
+            render_articles(k, articles)
+
+# --- 일반 키워드 검색 ---
 if st.button("검색"):
     if not keywords_input:
         st.warning("키워드를 입력해주세요.")
@@ -171,16 +186,3 @@ if st.button("검색"):
 
                     for k, future in zip(keyword_list, futures):
                         render_articles(k, future.result())
-
-# 즐겨찾기 추가 기능
-if st.button("⭐ 즐겨찾기 추가"):
-    new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
-    favorite_keywords.update(new_keywords)
-    st.success("즐겨찾기에 추가되었습니다.")
-
-fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(favorite_keywords))
-if st.button("즐겨찾기로 검색") and fav_selected:
-    with st.spinner("뉴스 검색 중..."):
-        for k in fav_selected:
-            articles = fetch_naver_news(k, start_date, end_date, filters) if api_choice == "Naver" else fetch_newsapi_news(k, start_date, end_date, filters)
-            render_articles(k, articles)
