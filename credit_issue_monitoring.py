@@ -1,11 +1,9 @@
-# 파일명: app.py
-
 import streamlit as st
 from datetime import datetime
 from search_api import search_news  # 뉴스 검색 함수
 from telegram_bot import send_telegram_message  # 텔레그램 전송 함수
 
-# 상태 변수 초기화
+# --- 상태 초기화 ---
 if "results" not in st.session_state:
     st.session_state.results = {}
 if "visible_count" not in st.session_state:
@@ -15,20 +13,20 @@ if "favorites" not in st.session_state:
 if "search_mode" not in st.session_state:
     st.session_state.search_mode = None
 
-# 기본 설정
+# --- 페이지 설정 ---
 st.set_page_config(page_title="Credit Issue Monitoring", layout="wide")
 st.title("📊 Credit Issue Monitoring")
 
-# --- 입력 영역 ---
+# --- 입력 폼 영역 ---
 api_type = st.selectbox("API 선택", ["Naver", "Daum", "Google"])
 
 col1, col2, col3 = st.columns([5, 1, 1])
 with col1:
     keyword_input = st.text_input("🔍 키워드 (예: 삼성, 한화)")
 with col2:
-    search_clicked = st.button("🔎 검색")
+    search_clicked = st.button("🔎 검색", use_container_width=True)
 with col3:
-    add_favorite_clicked = st.button("⭐ 즐겨찾기 추가")
+    add_favorite_clicked = st.button("⭐ 즐겨찾기 추가", use_container_width=True)
 
 col4, col5 = st.columns(2)
 with col4:
@@ -42,7 +40,7 @@ col6, col7 = st.columns([5, 1])
 with col6:
     favorite_selected = st.selectbox("⭐ 즐겨찾기에서 검색", options=st.session_state.favorites if st.session_state.favorites else [])
 with col7:
-    search_favorite_clicked = st.button("즐겨찾기로 검색")
+    search_favorite_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
 
 # --- 즐겨찾기 추가 ---
 if add_favorite_clicked:
@@ -82,22 +80,26 @@ if search_favorite_clicked and favorite_selected:
 # --- 검색 결과 표시 ---
 if st.session_state.results:
     st.markdown("## 🔎 검색 결과")
-    cols = st.columns(len(st.session_state.results))
+    keywords = list(st.session_state.results.keys())
+    cols = st.columns(len(keywords))
 
-    for i, (keyword, news_list) in enumerate(st.session_state.results.items()):
+    for i, keyword in enumerate(keywords):
+        news_list = st.session_state.results.get(keyword, [])
+        display_count = st.session_state.visible_count.get(keyword, 5)
+
         with cols[i]:
             with st.container(border=True):
                 st.markdown(f"### 📁 {keyword}")
-                display_count = st.session_state.visible_count.get(keyword, 5)
 
                 for news in news_list[:display_count]:
                     st.markdown(
                         f"""
-                        <div style='margin-bottom: 3px;'>
+                        <div style='margin-bottom: 2px;'>
                             <a href="{news['link']}" target="_blank">[{keyword}] {news['title']}</a><br>
-                            <span style='font-size: 0.8em; color: gray;'>{news['date']} | {news['source']}</span>
+                            <span style='font-size: 0.75em; color: gray;'>{news['date']} | {news['source']}</span>
                         </div>
-                        """, unsafe_allow_html=True
+                        """,
+                        unsafe_allow_html=True
                     )
 
                 if display_count < len(news_list):
