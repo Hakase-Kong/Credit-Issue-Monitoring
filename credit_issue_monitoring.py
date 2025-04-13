@@ -80,13 +80,19 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
     for col, (keyword, articles) in zip(cols, results.items()):
         with col:
             with st.container():
+                # 키워드 제목을 포함한 테두리
                 st.markdown(f"#### 📂 {keyword}")
                 st.markdown('<div style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">', unsafe_allow_html=True)
                 for i, article in enumerate(articles[:show_limit[keyword]]):
-                    st.markdown(f"**[{article['title']}]({article['link']})**")
-                    st.caption(f"{article['pubDate']} | {article['source']}")
+                    # 기사 제목과 링크
+                    st.markdown(f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True)
+                    # 기사 날짜와 출처를 바로 이어서 표시
+                    st.markdown(f"{article['pubDate']} | {article['source']}", unsafe_allow_html=True)
+                    
+                    # 기사들 사이에 더 이상 구분선을 추가하지 않음 (간격을 더 좁게)
                     if i < len(articles[:show_limit[keyword]]) - 1:
-                        st.markdown("<hr style='border: 0; border-top: 1px solid #ddd; margin: 5px 0;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='border: 0; border-top: 1px solid #ddd; margin: 0;'>", unsafe_allow_html=True)
+                
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 if show_limit[keyword] < len(articles):
@@ -122,6 +128,9 @@ st.markdown("""
         }
         .stMarkdown {
             margin-top: 0.5em;
+        }
+        .stButton>button {
+            margin: 1em 0;
         }
     </style>
 """, unsafe_allow_html=True)
