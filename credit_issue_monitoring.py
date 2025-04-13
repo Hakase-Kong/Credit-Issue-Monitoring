@@ -70,38 +70,52 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
     return articles[:limit]
 
 def render_articles_columnwise(results, show_limit, expanded_keywords):
-    st.markdown("### 🔍 검색 결과")
     cols = st.columns(len(results))
+    for idx, (keyword, articles) in enumerate(results.items()):
+        with cols[idx]:
+            with st.container():
+                st.markdown(f"### 📁 {keyword}")
 
-    for col, (keyword, articles) in zip(cols, results.items()):
-        with col:
-            st.markdown(f"""
-                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 10px; background-color: #f9f9f9;">
-                    <h4 style="margin-top: 0;">📂 {keyword}</h4>
-            """, unsafe_allow_html=True)
+                articles_to_show = articles[:show_limit.get(keyword, 5)]
 
-            for i, article in enumerate(articles[:show_limit[keyword]]):
-                st.markdown(f"""
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-weight: bold; font-size: 14px;">
-                            <a href="{article['link']}" target="_blank" style="text-decoration: none; color: #0066cc;">
-                                {article['title']}
-                            </a>
-                        </div>
-                        <div style="font-size: 12px; color: gray;">
-                            {article['pubDate']} | {article['source']}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                if i < len(articles[:show_limit[keyword]]) - 1:
-                    st.markdown("<hr style='border: none; border-top: 1px solid #eee; margin: 6px 0;'>", unsafe_allow_html=True)
+                for article in articles_to_show:
+                    with st.container():
+                        st.markdown(f"""
+                            <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
+                                <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
+                                    <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
+                                        {article['title']}
+                                    </a>
+                                </div>
+                                <div style='font-size: 12px; color: gray;'>
+                                    {article['date']} | {article['source']}
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-            st.markdown("</div>", unsafe_allow_html=True)
+                if len(articles) > show_limit.get(keyword, 5):
+                    if st.button(f"더보기", key=f"more_{keyword}"):
+                        expanded_keywords.add(keyword)
+                        show_limit[keyword] += 5
 
-            if show_limit[keyword] < len(articles):
-                if st.button("더보기", key=f"more_{keyword}"):
-                    show_limit[keyword] += 5
-                    st.experimental_rerun()
+# 초기값
+if "show_limit" not in st.session_state:
+    st.session_state.show_limit = {}
+
+if "expanded_keywords" not in st.session_state:
+    st.session_state.expanded_keywords = set()
+
+# 초기화
+for keyword in search_results.keys():
+    if keyword not in st.session_state.show_limit:
+        st.session_state.show_limit[keyword] = 5
+
+# 함수 호출
+render_articles_columnwise(
+    search_results,
+    st.session_state.show_limit,
+    st.session_state.expanded_keywords
+)
 
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
