@@ -69,7 +69,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def render_articles_columnwise(results, show_limit):
+def render_articles_columnwise(results, show_limit, expanded_keywords):
     st.markdown("### 🔍 검색 결과")
     cols = st.columns(len(results))
 
