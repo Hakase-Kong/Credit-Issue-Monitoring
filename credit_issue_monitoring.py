@@ -81,12 +81,12 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
         with col:
             with st.container():
                 st.markdown(f"#### 📂 {keyword}")
-                st.markdown('<div style="border: 1px solid #ddd; padding: 10px; border-radius: 8px;">', unsafe_allow_html=True)
+                st.markdown('<div style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">', unsafe_allow_html=True)
                 for i, article in enumerate(articles[:show_limit[keyword]]):
-                    st.markdown(f"- [{article['title']}]({article['link']})")
+                    st.markdown(f"**[{article['title']}]({article['link']})**")
                     st.caption(f"{article['pubDate']} | {article['source']}")
                     if i < len(articles[:show_limit[keyword]]) - 1:
-                        st.markdown("<hr style='border: 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='border: 0; border-top: 1px solid #ddd; margin: 5px 0;'>", unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 if show_limit[keyword] < len(articles):
@@ -115,6 +115,13 @@ st.markdown("""
         }
         .stTextInput {
             margin-bottom: 1em;
+        }
+        .stMarkdown ul {
+            margin-left: 20px;
+            margin-bottom: 0.5em;
+        }
+        .stMarkdown {
+            margin-top: 0.5em;
         }
     </style>
 """, unsafe_allow_html=True)
