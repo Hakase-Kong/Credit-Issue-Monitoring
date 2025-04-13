@@ -1,184 +1,130 @@
 import streamlit as st
 import requests
-import re
 from datetime import datetime
 from bs4 import BeautifulSoup
-import concurrent.futures
-import telepot
 
-# --- API 키 설정 ---
-NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
-NAVER_CLIENT_SECRET = "lZc2gScgNq"
-NEWS_API_KEY = "3a33b7b756274540926aeea8df60637c"
+# Telegram 설정
+TELEGRAM_BOT_TOKEN = '7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ'
+TELEGRAM_CHAT_ID = '-1002404027768'
 
-# --- 텔레그램 설정 ---
-TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
-TELEGRAM_CHAT_ID = "-1002404027768"
+# 뉴스 검색 함수 (예시용 - 실제 API로 교체 가능)
+def search_news(keyword, start_date=None, end_date=None, max_results=5):
+    # 예시 데이터
+    dummy_data = [
+        {
+            "title": f"[{keyword}] 예시 뉴스 제목 {i+1}",
+            "link": "https://news.naver.com",
+            "pubDate": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "source": "Naver"
+        } for i in range(max_results)
+    ]
+    return dummy_data
 
-credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
-finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
-all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
-favorite_keywords = set()
-
-# --- 텔레그램 클래스 ---
-class Telegram:
-    def __init__(self):
-        self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
-
-    def send_message(self, message):
-        self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
-
-# --- 필터 검사 ---
-def filter_by_issues(title, desc, selected_keywords):
-    content = title + " " + desc
-    return all(re.search(k, content) for k in selected_keywords)
-
-# --- 뉴스 수집 함수 ---
-def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
+# 텔레그램 전송 함수
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
     }
-    articles = []
-    for page in range(1, 6):
-        if len(articles) >= limit:
-            break
-        params = {
-            "query": query,
-            "display": 10,
-            "start": (page - 1) * 10 + 1,
-            "sort": "date"
-        }
+    requests.post(url, data=payload)
 
-        response = requests.get("https://openapi.naver.com/v1/search/news.json", headers=headers, params=params)
-        if response.status_code != 200:
-            break
+# 즐겨찾기 저장용
+if "favorites" not in st.session_state:
+    st.session_state.favorites = []
 
-        items = response.json().get("items", [])
-        for item in items:
-            title, desc = item["title"], item["description"]
-            pub_date = datetime.strptime(item["pubDate"], "%a, %d %b %Y %H:%M:%S %z").date()
-            if start_date and pub_date < start_date:
-                continue
-            if end_date and pub_date > end_date:
-                continue
-            if filters and not filter_by_issues(title, desc, filters):
-                continue
+# 기사 저장 상태
+if "results" not in st.session_state:
+    st.session_state.results = {}
 
-            articles.append({
-                "title": re.sub("<.*?>", "", title),
-                "link": item["link"],
-                "pubDate": pub_date.strftime("%Y-%m-%d"),
-                "source": "Naver"
-            })
-    return articles[:limit]
-
-# --- UI에 기사 출력 ---
-def render_articles_columnwise(results, show_limit, expanded_keywords):
-    st.markdown("### 🔍 검색 결과")
-    cols = st.columns(len(results))
-    for col, (keyword, articles) in zip(cols, results.items()):
-        with col:
-            with st.container():
-                st.markdown(f"#### 📂 {keyword}")
-                st.markdown('<div style="border: 1px solid #ddd; padding: 10px; border-radius: 8px;">', unsafe_allow_html=True)
-                for i, article in enumerate(articles[:show_limit[keyword]]):
-                    st.markdown(f"- [{article['title']}]({article['link']})")
-                    st.caption(f"{article['pubDate']} | {article['source']}")
-                    if i < len(articles[:show_limit[keyword]]) - 1:
-                        st.markdown("---")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                if show_limit[keyword] < len(articles):
-                    if st.button("더보기", key=f"more_{keyword}"):
-                        expanded_keywords.add(keyword)
-
-# --- Streamlit 시작 ---
+# Streamlit 구성 시작
 st.set_page_config(layout="wide")
-st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
+st.title("📊 Credit Issue Monitoring")
 
-# --- 스타일 개선 (CSS) ---
-st.markdown("""
-    <style>
-        .stButton>button {
-            height: 3em;
-            width: 6em;
-            font-size: 0.9em;
-            margin: 0.2em;
-        }
-        .stTextInput>div>div>input {
-            font-size: 0.9em;
-        }
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# --- 검색 조건 입력 ---
+api_option = st.selectbox("API 선택", ["Naver"], key="api")
 
-# --- 기본 UI ---
-api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
-
-col1, col2, col3 = st.columns([4, 1, 1])
+# 키워드 및 버튼 정렬
+col1, col2, col3 = st.columns([6, 1, 1.5])
 with col1:
-    keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
+    keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", "")
 with col2:
-    search_clicked = st.button("검색")
+    search_button = st.button("검색", use_container_width=True)
 with col3:
-    if st.button("⭐ 즐겨찾기 추가"):
-        new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
-        favorite_keywords.update(new_keywords)
-        st.success("즐겨찾기에 추가되었습니다.")
+    add_fav_button = st.button("⭐ 즐겨찾기 추가", use_container_width=True)
 
-start_date = st.date_input("시작일")
-end_date = st.date_input("종료일")
-filters = st.multiselect("⭐ 필터링 키워드 선택", all_filter_keywords)
+col_date1, col_date2 = st.columns(2)
+with col_date1:
+    start_date = st.date_input("시작일", value=None)
+with col_date2:
+    end_date = st.date_input("종료일", value=None)
 
-fav_col1, fav_col2 = st.columns([5, 1])
-with fav_col1:
-    fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(favorite_keywords))
-with fav_col2:
-    fav_search_clicked = st.button("즐겨찾기로 검색")
+# 필터링 키워드 선택
+filter_keyword = st.selectbox("📌 필터링 키워드 선택", st.session_state.favorites)
 
-# --- 검색 결과 처리 ---
-search_results = {}
-show_limit = {}
-expanded_keywords = set()
+# 즐겨찾기 검색
+col4, col5 = st.columns([6, 1.5])
+with col4:
+    fav_search_keyword = st.selectbox("⭐ 즐겨찾기에서 검색", options=st.session_state.favorites)
+with col5:
+    fav_search_button = st.button("즐겨찾기로 검색", use_container_width=True)
 
-def process_keywords(keyword_list):
-    for k in keyword_list:
-        if api_choice == "Naver":
-            articles = fetch_naver_news(k, start_date, end_date, filters)
-        else:
-            articles = []  # NewsAPI 비활성 처리 중
-        search_results[k] = articles
-        show_limit[k] = 5
-        send_to_telegram(k, articles[:5])
+# 즐겨찾기 추가 기능
+if add_fav_button and keywords_input:
+    for k in [k.strip() for k in keywords_input.split(",") if k.strip()]:
+        if k not in st.session_state.favorites:
+            st.session_state.favorites.append(k)
 
-def send_to_telegram(keyword, articles):
-    if articles:
-        msg = f"*🔔 {keyword} 관련 상위 뉴스 5건:*\n"
-        for a in articles:
-            msg += f"- [{a['title']}]({a['link']})\n"
-        Telegram().send_message(msg)
+# 검색 실행 함수
+def run_search(keywords_str):
+    st.session_state.results = {}
+    keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
+    for kw in keywords:
+        news_list = search_news(kw, start_date, end_date, max_results=5)
+        st.session_state.results[kw] = {
+            "articles": news_list,
+            "visible_count": 5
+        }
+        # 텔레그램 전송
+        message = f"<b>[{kw}] 뉴스 요약 상위 5건</b>\n"
+        for a in news_list:
+            message += f"- <a href='{a['link']}'>{a['title']}</a>\n"
+        send_telegram_message(message)
 
-# --- 직접 검색 ---
-if search_clicked and keywords_input:
-    keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
-    if len(keyword_list) > 10:
-        st.warning("키워드는 최대 10개까지 입력 가능합니다.")
-    else:
-        with st.spinner("뉴스 검색 중..."):
-            process_keywords(keyword_list)
+# 검색 버튼
+if search_button and keywords_input:
+    run_search(keywords_input)
 
-# --- 즐겨찾기 검색 ---
-if fav_search_clicked and fav_selected:
-    with st.spinner("뉴스 검색 중..."):
-        process_keywords(fav_selected)
+# 즐겨찾기에서 검색
+if fav_search_button and fav_search_keyword:
+    run_search(fav_search_keyword)
 
-# --- 더보기 동작 처리 ---
-for keyword in expanded_keywords:
-    show_limit[keyword] += 10
+# --- 검색 결과 ---
+if st.session_state.results:
+    st.markdown("### 🔍 검색 결과")
+    col_count = len(st.session_state.results)
+    result_cols = st.columns(col_count)
 
-if search_results:
-    render_articles_columnwise(search_results, show_limit, expanded_keywords)
+    for idx, (kw, data) in enumerate(st.session_state.results.items()):
+        with result_cols[idx]:
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div style='border: 2px solid #bbb; border-radius: 10px; padding: 10px; margin-bottom: 20px;'>
+                        <h5>📁 {kw}</h5>
+                """, unsafe_allow_html=True)
+                for article in data["articles"][:data["visible_count"]]:
+                    st.markdown(
+                        f"""
+                        <div style='margin-bottom: 5px;'>
+                            <a href="{article['link']}" target="_blank"><b>{article['title']}</b></a><br>
+                            <small>{article['pubDate']} | {article['source']}</small>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                if data["visible_count"] < len(data["articles"]):
+                    if st.button("더보기", key=f"more_{kw}"):
+                        st.session_state.results[kw]["visible_count"] += 10
+                st.markdown("</div>", unsafe_allow_html=True)
