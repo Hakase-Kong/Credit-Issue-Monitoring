@@ -3,7 +3,6 @@ import requests
 import re
 from datetime import datetime
 from bs4 import BeautifulSoup
-import concurrent.futures
 import telepot
 
 # --- API 키 설정 ---
@@ -20,7 +19,6 @@ finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
 favorite_keywords = set()
 
-# --- 텔레그램 클래스 ---
 class Telegram:
     def __init__(self):
         self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
@@ -28,12 +26,10 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
 
-# --- 필터 검사 ---
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
     return all(re.search(k, content) for k in selected_keywords)
 
-# --- 뉴스 수집 함수 ---
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -73,37 +69,31 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-# --- UI에 기사 출력 ---
 def render_articles_columnwise(results, show_limit, expanded_keywords):
     st.markdown("### 🔍 검색 결과")
     cols = st.columns(len(results))
     for col, (keyword, articles) in zip(cols, results.items()):
         with col:
             with st.container():
-                # 키워드 제목을 포함한 테두리
                 st.markdown(f"#### 📂 {keyword}")
-                st.markdown('<div style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px;">', unsafe_allow_html=True)
+                st.markdown('<div style="border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 20px;">', unsafe_allow_html=True)
+
                 for i, article in enumerate(articles[:show_limit[keyword]]):
-                    # 기사 제목과 링크
-                    st.markdown(f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True)
-                    # 기사 날짜와 출처를 바로 이어서 표시
-                    st.markdown(f"{article['pubDate']} | {article['source']}", unsafe_allow_html=True)
-                    
-                    # 기사들 사이에 더 이상 구분선을 추가하지 않음 (간격을 더 좁게)
+                    st.markdown(f"<div style='margin-bottom: 6px; font-size: 14px;'><b><a href='{article['link']}' target='_blank'>{article['title']}</a></b></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 12px; color: gray; margin-bottom: 4px;'>{article['pubDate']} | {article['source']}</div>", unsafe_allow_html=True)
                     if i < len(articles[:show_limit[keyword]]) - 1:
-                        st.markdown("<hr style='border: 0; border-top: 1px solid #ddd; margin: 0;'>", unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("<div style='margin: 3px 0; border-top: 1px solid #eee;'></div>", unsafe_allow_html=True)
 
                 if show_limit[keyword] < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         expanded_keywords.add(keyword)
 
+                st.markdown('</div>', unsafe_allow_html=True)
+
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
-st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- 스타일 개선 (CSS) ---
+# --- 상단 패딩 수정 포함된 스타일 ---
 st.markdown("""
     <style>
         .stButton>button {
@@ -116,7 +106,7 @@ st.markdown("""
             font-size: 0.9em;
         }
         .block-container {
-            padding-top: 1rem;
+            padding-top: 3rem !important;
             padding-bottom: 1rem;
         }
         .stTextInput {
@@ -129,11 +119,11 @@ st.markdown("""
         .stMarkdown {
             margin-top: 0.5em;
         }
-        .stButton>button {
-            margin: 1em 0;
-        }
     </style>
 """, unsafe_allow_html=True)
+
+# --- 헤더 표시 ---
+st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
 # --- 기본 UI ---
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
@@ -159,7 +149,6 @@ with fav_col1:
 with fav_col2:
     fav_search_clicked = st.button("즐겨찾기로 검색")
 
-# --- 검색 결과 처리 ---
 search_results = {}
 show_limit = {}
 expanded_keywords = set()
@@ -181,7 +170,6 @@ def send_to_telegram(keyword, articles):
             msg += f"- [{a['title']}]({a['link']})\n"
         Telegram().send_message(msg)
 
-# --- 직접 검색 ---
 if search_clicked and keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
@@ -190,12 +178,11 @@ if search_clicked and keywords_input:
         with st.spinner("뉴스 검색 중..."):
             process_keywords(keyword_list)
 
-# --- 즐겨찾기 검색 ---
 if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(fav_selected)
 
-# --- 더보기 동작 처리 ---
+# 더보기 동작 처리
 for keyword in expanded_keywords:
     show_limit[keyword] += 10
 
