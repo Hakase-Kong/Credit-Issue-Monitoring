@@ -28,7 +28,7 @@ class Telegram:
 
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
-    return any(re.search(k, content) for k in selected_keywords) if selected_keywords else True
+    return all(re.search(k, content) for k in selected_keywords)
 
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
@@ -69,13 +69,13 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def render_articles_columnwise(results):
+def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
         with cols[idx]:
             with st.container():
-                st.markdown(f"### \ud83d\udcc1 {keyword}")
-                articles_to_show = articles[:st.session_state.show_limit.get(keyword, 5)]
+                st.markdown(f"### {keyword}")
+                articles_to_show = articles[:show_limit.get(keyword, 5)]
 
                 for article in articles_to_show:
                     with st.container():
@@ -92,10 +92,10 @@ def render_articles_columnwise(results):
                             </div>
                         """, unsafe_allow_html=True)
 
-                if len(articles) > st.session_state.show_limit.get(keyword, 5):
+                if len(articles) > show_limit.get(keyword, 5):
                     if st.button(f"더보기", key=f"more_{keyword}"):
-                        st.session_state.show_limit[keyword] += 5
-                        st.session_state.expanded_keywords.add(keyword)
+                        expanded_keywords.add(keyword)
+                        show_limit[keyword] += 5
 
 # --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
@@ -129,45 +129,42 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='color:#1a1a1a;'>\ud83d\udcca Credit Issue Monitoring</h1>", unsafe_allow_html=True)
-
-# --- 세션 상태 초기화 ---
-if "show_limit" not in st.session_state:
-    st.session_state.show_limit = {}
-if "expanded_keywords" not in st.session_state:
-    st.session_state.expanded_keywords = set()
-if "search_results" not in st.session_state:
-    st.session_state.search_results = {}
+st.markdown("<h1 style='color:#1a1a1a;'>&#128202; Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
 # --- UI 입력 ---
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
-    keywords_input = st.text_input("\ud83d\udd0d \ud0a4\uc6cc\ub4dc (예: 삼성, 한화)", value="")
+    keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
 with col2:
     search_clicked = st.button("검색")
 with col3:
-    if st.button("\u2b50 \uc990\uaca8\ucc45\uae30 \ucd94\uac00"):
+    if st.button("⭐ 즐겨찾기 추가"):
         new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
         favorite_keywords.update(new_keywords)
-        st.success("\uc990\uaca8\ucc45\uc5d0 \ucd94\uac00\ub418\uc5c8\uc2b5\ub2c8\ub2e4.")
+        st.success("즐겨찾기에 추가되었습니다.")
 
 start_date = st.date_input("시작일")
 end_date = st.date_input("종료일")
-filters = st.multiselect("\u2b50 \ud544\ud130\ub9c1 \ud0a4\uc6cc\ub4dc \uc120\ud0dd", all_filter_keywords)
+filters = st.multiselect("⭐ 필터링 키워드 선택", all_filter_keywords)
 
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
-    fav_selected = st.multiselect("\u2b50 \uc990\uaca8\ucc45\uae30\uc5d0\uc11c \uac80\uc0c9", sorted(favorite_keywords))
+    fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(favorite_keywords))
 with fav_col2:
-    fav_search_clicked = st.button("\uc990\uaca8\ucc45\uae30\ub85c \uac80\uc0c9")
+    fav_search_clicked = st.button("즐겨찾기로 검색")
+
+# --- 검색 결과 저장용 변수 ---
+search_results = {}
+show_limit = {}
+expanded_keywords = set()
 
 # --- 텔레그램 전송 함수 ---
 def send_to_telegram(keyword, articles):
     if articles:
         msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
         for a in articles:
-            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])  # 이모지 제거
+            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
             msg += f"- [{title}]({a['link']})\n"
         try:
             Telegram().send_message(msg)
@@ -181,9 +178,16 @@ def process_keywords(keyword_list):
             articles = fetch_naver_news(k, start_date, end_date, filters)
         else:
             articles = []
-        st.session_state.search_results[k] = articles
+        search_results[k] = articles
+        show_limit[k] = 5
         st.session_state.show_limit[k] = 5
         send_to_telegram(k, articles[:5])
+
+# --- 세션 상태 초기화 ---
+if "show_limit" not in st.session_state:
+    st.session_state.show_limit = {}
+if "expanded_keywords" not in st.session_state:
+    st.session_state.expanded_keywords = set()
 
 # --- 사용자 입력 처리 ---
 if search_clicked and keywords_input:
@@ -198,6 +202,11 @@ if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(fav_selected)
 
+# --- 더보기 반영 ---
+for keyword in st.session_state.expanded_keywords:
+    if keyword in show_limit:
+        show_limit[keyword] += 10
+
 # --- 결과 렌더링 ---
-if st.session_state.search_results:
-    render_articles_columnwise(st.session_state.search_results)
+if search_results:
+    render_articles_columnwise(search_results, show_limit, st.session_state.expanded_keywords)
