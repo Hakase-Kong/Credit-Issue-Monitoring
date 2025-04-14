@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 from newsapi import NewsApiClient
 import re
