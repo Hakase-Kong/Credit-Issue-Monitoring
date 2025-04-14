@@ -14,11 +14,13 @@ NEWS_API_KEY = "3a33b7b756274540926aeea8df60637c"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
+# --- 키워드 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
 favorite_keywords = set()
 
+# --- 텔레그램 클래스 ---
 class Telegram:
     def __init__(self):
         self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
@@ -26,10 +28,12 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
 
+# --- 필터링 ---
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
     return all(re.search(k, content) for k in selected_keywords)
 
+# --- Naver API 뉴스 수집 ---
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -69,12 +73,43 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
+# --- NewsAPI 뉴스 수집 ---
+def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100):
+    url = "https://newsapi.org/v2/everything"
+    params = {
+        "q": query,
+        "from": start_date.strftime("%Y-%m-%d") if start_date else None,
+        "to": end_date.strftime("%Y-%m-%d") if end_date else None,
+        "language": "ko",
+        "sortBy": "publishedAt",
+        "apiKey": NEWS_API_KEY,
+        "pageSize": 100
+    }
+    response = requests.get(url, params=params)
+    articles = []
+
+    if response.status_code == 200:
+        for item in response.json().get("articles", []):
+            title = item["title"] or ""
+            desc = item["description"] or ""
+            if filters and not filter_by_issues(title, desc, filters):
+                continue
+            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
+            articles.append({
+                "title": title,
+                "link": item["url"],
+                "date": pub_date.strftime("%Y-%m-%d"),
+                "source": "NewsAPI"
+            })
+    return articles[:limit]
+
+# --- 카드형 뉴스 렌더링 ---
 def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
         with cols[idx]:
             with st.container():
-                st.markdown(f"### {keyword}")
+                st.markdown(f"### 📁 {keyword}")
                 articles_to_show = articles[:show_limit.get(keyword, 5)]
 
                 for article in articles_to_show:
@@ -119,17 +154,10 @@ st.markdown("""
         .stTextInput {
             margin-bottom: 1em;
         }
-        .stMarkdown ul {
-            margin-left: 20px;
-            margin-bottom: 0.5em;
-        }
-        .stMarkdown {
-            margin-top: 0.5em;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='color:#1a1a1a;'>&#128202; Credit Issue Monitoring</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
 # --- UI 입력 ---
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
@@ -154,36 +182,37 @@ with fav_col1:
 with fav_col2:
     fav_search_clicked = st.button("즐겨찾기로 검색")
 
-# --- 검색 결과 저장용 변수 ---
+# --- 결과 저장 변수 ---
 search_results = {}
 show_limit = {}
 expanded_keywords = set()
 
-# --- 텔레그램 전송 함수 ---
+# --- 텔레그램 전송 ---
 def send_to_telegram(keyword, articles):
     if articles:
         msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
         for a in articles:
-            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
+            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])  # 이모지 제거
             msg += f"- [{title}]({a['link']})\n"
         try:
             Telegram().send_message(msg)
         except Exception as e:
             st.warning(f"텔레그램 전송 오류: {e}")
 
-# --- 뉴스 검색 및 처리 ---
+# --- 뉴스 처리 함수 ---
 def process_keywords(keyword_list):
     for k in keyword_list:
         if api_choice == "Naver":
             articles = fetch_naver_news(k, start_date, end_date, filters)
         else:
-            articles = []
+            articles = fetch_newsapi_news(k, start_date, end_date, filters)
+
         search_results[k] = articles
         show_limit[k] = 5
         st.session_state.show_limit[k] = 5
         send_to_telegram(k, articles[:5])
 
-# --- 세션 상태 초기화 ---
+# --- 세션 초기화 ---
 if "show_limit" not in st.session_state:
     st.session_state.show_limit = {}
 if "expanded_keywords" not in st.session_state:
@@ -207,6 +236,6 @@ for keyword in st.session_state.expanded_keywords:
     if keyword in show_limit:
         show_limit[keyword] += 10
 
-# --- 결과 렌더링 ---
+# --- 결과 출력 ---
 if search_results:
     render_articles_columnwise(search_results, show_limit, st.session_state.expanded_keywords)
