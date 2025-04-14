@@ -20,7 +20,6 @@ finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
 favorite_keywords = set()
 
-# --- 텔레그램 클래스 ---
 class Telegram:
     def __init__(self):
         self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
@@ -28,12 +27,10 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
 
-# --- 필터링 ---
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
     return all(re.search(k, content) for k in selected_keywords)
 
-# --- Naver API 뉴스 수집 ---
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -49,11 +46,9 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             "start": (page - 1) * 10 + 1,
             "sort": "date"
         }
-
         response = requests.get("https://openapi.naver.com/v1/search/news.json", headers=headers, params=params)
         if response.status_code != 200:
             break
-
         items = response.json().get("items", [])
         for item in items:
             title, desc = item["title"], item["description"]
@@ -64,7 +59,6 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
                 continue
             if filters and not filter_by_issues(title, desc, filters):
                 continue
-
             articles.append({
                 "title": re.sub("<.*?>", "", title),
                 "link": item["link"],
@@ -73,25 +67,21 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-# --- NewsAPI 뉴스 수집 ---
-def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100):
+def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100, language="ko"):
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": query,
         "sortBy": "publishedAt",
         "apiKey": NEWS_API_KEY,
         "pageSize": 100,
-        "language": "ko"  # 필요시 "en"으로 변경 가능
+        "language": language
     }
-
     if start_date:
         params["from"] = start_date.strftime("%Y-%m-%d")
     if end_date:
         params["to"] = end_date.strftime("%Y-%m-%d")
-
     response = requests.get(url, params=params)
     articles = []
-
     if response.status_code == 200:
         data = response.json()
         items = data.get("articles", [])
@@ -112,10 +102,8 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
             })
     else:
         st.warning(f"NewsAPI 오류: {response.status_code} - {response.text}")
-
     return articles[:limit]
 
-# --- 카드형 뉴스 렌더링 ---
 def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
@@ -123,7 +111,6 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
             with st.container():
                 st.markdown(f"### 📁 {keyword}")
                 articles_to_show = articles[:show_limit.get(keyword, 5)]
-
                 for article in articles_to_show:
                     with st.container():
                         st.markdown(f"""
@@ -138,16 +125,13 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
-
                 if len(articles) > show_limit.get(keyword, 5):
                     if st.button(f"더보기", key=f"more_{keyword}"):
                         expanded_keywords.add(keyword)
                         show_limit[keyword] += 5
 
-# --- Streamlit 시작 ---
 st.set_page_config(layout="wide")
 
-# --- 스타일 ---
 st.markdown("""
     <style>
         .stButton>button {
@@ -171,8 +155,9 @@ st.markdown("""
 
 st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- UI 입력 ---
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
+language = st.selectbox("뉴스 언어 설정", ["ko", "en"], index=0)
+
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
     keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
@@ -194,43 +179,38 @@ with fav_col1:
 with fav_col2:
     fav_search_clicked = st.button("즐겨찾기로 검색")
 
-# --- 결과 저장 변수 ---
 search_results = {}
 show_limit = {}
 expanded_keywords = set()
 
-# --- 텔레그램 전송 ---
 def send_to_telegram(keyword, articles):
     if articles:
         msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
         for a in articles:
-            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])  # 이모지 제거
+            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
             msg += f"- [{title}]({a['link']})\n"
         try:
             Telegram().send_message(msg)
         except Exception as e:
             st.warning(f"텔레그램 전송 오류: {e}")
 
-# --- 뉴스 처리 함수 ---
 def process_keywords(keyword_list):
     for k in keyword_list:
         if api_choice == "Naver":
             articles = fetch_naver_news(k, start_date, end_date, filters)
         else:
-            articles = fetch_newsapi_news(k, start_date, end_date, filters)
+            articles = fetch_newsapi_news(k, start_date, end_date, filters, language=language)
 
         search_results[k] = articles
         show_limit[k] = 5
         st.session_state.show_limit[k] = 5
         send_to_telegram(k, articles[:5])
 
-# --- 세션 초기화 ---
 if "show_limit" not in st.session_state:
     st.session_state.show_limit = {}
 if "expanded_keywords" not in st.session_state:
     st.session_state.expanded_keywords = set()
 
-# --- 사용자 입력 처리 ---
 if search_clicked and keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
@@ -243,11 +223,9 @@ if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(fav_selected)
 
-# --- 더보기 반영 ---
 for keyword in st.session_state.expanded_keywords:
     if keyword in show_limit:
         show_limit[keyword] += 10
 
-# --- 결과 출력 ---
 if search_results:
     render_articles_columnwise(search_results, show_limit, st.session_state.expanded_keywords)
