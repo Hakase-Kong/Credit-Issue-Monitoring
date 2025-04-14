@@ -78,29 +78,41 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": query,
-        "from": start_date.strftime("%Y-%m-%d") if start_date else None,
-        "to": end_date.strftime("%Y-%m-%d") if end_date else None,
-        "language": "ko",
         "sortBy": "publishedAt",
         "apiKey": NEWS_API_KEY,
-        "pageSize": 100
+        "pageSize": 100,
+        "language": "ko"  # 필요시 "en"으로 변경 가능
     }
+
+    if start_date:
+        params["from"] = start_date.strftime("%Y-%m-%d")
+    if end_date:
+        params["to"] = end_date.strftime("%Y-%m-%d")
+
     response = requests.get(url, params=params)
     articles = []
 
     if response.status_code == 200:
-        for item in response.json().get("articles", []):
-            title = item["title"] or ""
-            desc = item["description"] or ""
+        data = response.json()
+        items = data.get("articles", [])
+        for item in items:
+            title = item.get("title", "")
+            desc = item.get("description", "")
             if filters and not filter_by_issues(title, desc, filters):
                 continue
-            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
+            try:
+                pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
+            except Exception:
+                continue
             articles.append({
                 "title": title,
-                "link": item["url"],
+                "link": item.get("url", ""),
                 "date": pub_date.strftime("%Y-%m-%d"),
                 "source": "NewsAPI"
             })
+    else:
+        st.warning(f"NewsAPI 오류: {response.status_code} - {response.text}")
+
     return articles[:limit]
 
 # --- 카드형 뉴스 렌더링 ---
