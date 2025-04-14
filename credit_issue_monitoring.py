@@ -1,6 +1,6 @@
-import requests
 import streamlit as st
 from newsapi import NewsApiClient
+import requests
 import re
 from datetime import datetime
 import telepot
@@ -124,7 +124,7 @@ st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
-language = st.selectbox("뉴스 언어 설정", ["ko", "en"], index=0)
+language = st.selectbox("뉴스 언어 설정 (NewsAPI만 해당)", ["en", "de", "fr", "it", "es", "ru", "zh"])
 
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
