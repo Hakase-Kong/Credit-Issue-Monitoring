@@ -138,12 +138,16 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
                 for article in articles_to_show:
                     with st.container():
                         st.markdown(f"""
-                            <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
-                                <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
-                                    <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
-                                        {article['title']}
-                                    </a>
-                                </div>
-                                <div style='
-::contentReference[oaicite:11]{index=11}
+    <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
+        <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
+            <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
+                {article['title']}
+            </a>
+        </div>
+        <div style='font-size: 13px; color: #888;'>
+            {article['date']} | {article['source']}
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
  
