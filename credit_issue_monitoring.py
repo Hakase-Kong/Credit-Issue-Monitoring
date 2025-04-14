@@ -1,8 +1,7 @@
 import streamlit as st
-import requests
+from newsapi import NewsApiClient
 import re
 from datetime import datetime
-from bs4 import BeautifulSoup
 import telepot
 
 # --- API 키 설정 ---
@@ -67,91 +66,59 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100, language="ko"):
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        "q": query,
-        "sortBy": "publishedAt",
-        "apiKey": NEWS_API_KEY,
-        "pageSize": 100,
-        "language": language
-    }
-    if start_date:
-        params["from"] = start_date.strftime("%Y-%m-%d")
-    if end_date:
-        params["to"] = end_date.strftime("%Y-%m-%d")
-    response = requests.get(url, params=params)
+def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100, language="en"):
+    newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
-    if response.status_code == 200:
-        data = response.json()
-        items = data.get("articles", [])
-        for item in items:
+    try:
+        data = newsapi.get_everything(
+            q=query,
+            from_param=start_date.strftime("%Y-%m-%d") if start_date else None,
+            to=end_date.strftime("%Y-%m-%d") if end_date else None,
+            language=language,
+            sort_by="publishedAt",
+            page_size=100
+        )
+        for item in data.get("articles", []):
             title = item.get("title", "")
             desc = item.get("description", "")
             if filters and not filter_by_issues(title, desc, filters):
                 continue
-            try:
-                pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
-            except Exception:
-                continue
+            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
             articles.append({
                 "title": title,
                 "link": item.get("url", ""),
                 "date": pub_date.strftime("%Y-%m-%d"),
                 "source": "NewsAPI"
             })
-    else:
-        st.warning(f"NewsAPI 오류: {response.status_code} - {response.text}")
+    except Exception as e:
+        st.warning(f"NewsAPI 접근 오류: {e}")
     return articles[:limit]
 
 def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
         with cols[idx]:
-            with st.container():
-                st.markdown(f"### 📁 {keyword}")
-                articles_to_show = articles[:show_limit.get(keyword, 5)]
-                for article in articles_to_show:
-                    with st.container():
-                        st.markdown(f"""
-                            <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
-                                <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
-                                    <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
-                                        {article['title']}
-                                    </a>
-                                </div>
-                                <div style='font-size: 12px; color: gray;'>
-                                    {article['date']} | {article['source']}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                if len(articles) > show_limit.get(keyword, 5):
-                    if st.button(f"더보기", key=f"more_{keyword}"):
-                        expanded_keywords.add(keyword)
-                        show_limit[keyword] += 5
+            st.markdown(f"### 📁 {keyword}")
+            articles_to_show = articles[:show_limit.get(keyword, 5)]
+            for article in articles_to_show:
+                st.markdown(f"""
+                    <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
+                        <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
+                            <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
+                                {article['title']}
+                            </a>
+                        </div>
+                        <div style='font-size: 12px; color: gray;'>
+                            {article['date']} | {article['source']}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            if len(articles) > show_limit.get(keyword, 5):
+                if st.button(f"더보기", key=f"more_{keyword}"):
+                    expanded_keywords.add(keyword)
+                    show_limit[keyword] += 5
 
 st.set_page_config(layout="wide")
-
-st.markdown("""
-    <style>
-        .stButton>button {
-            height: 3em;
-            width: 100%;
-            font-size: 1.2em;
-            margin: 0.2em 0;
-        }
-        .stTextInput>div>div>input {
-            font-size: 0.9em;
-        }
-        .block-container {
-            padding-top: 3rem !important;
-            padding-bottom: 1rem;
-        }
-        .stTextInput {
-            margin-bottom: 1em;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
 st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
@@ -200,7 +167,6 @@ def process_keywords(keyword_list):
             articles = fetch_naver_news(k, start_date, end_date, filters)
         else:
             articles = fetch_newsapi_news(k, start_date, end_date, filters, language=language)
-
         search_results[k] = articles
         show_limit[k] = 5
         st.session_state.show_limit[k] = 5
