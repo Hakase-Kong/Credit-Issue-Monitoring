@@ -92,14 +92,19 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
     newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
-        data = newsapi.get_everything(
+        response = newsapi.get_everything(
             q=query,
             from_param=start_date.strftime("%Y-%m-%d") if start_date else None,
             to=end_date.strftime("%Y-%m-%d") if end_date else None,
             sort_by="publishedAt",
-            page_size=100
+            page_size=100,
+            language="en"
         )
-        for item in data.get("articles", []):
+        if not response or "articles" not in response:
+            st.warning("❌ NewsAPI 응답이 올바르지 않습니다. 키워드 또는 날짜 조건을 확인해주세요.")
+            return []
+
+        for item in response["articles"]:
             title = item.get("title", "")
             desc = item.get("description", "")
             if not filter_by_issues(title, desc, []):
@@ -112,7 +117,7 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
                 "source": "NewsAPI"
             })
     except Exception as e:
-        st.warning(f"NewsAPI 접근 오류: {e}")
+        st.warning(f"⚠️ NewsAPI 접근 오류: {e}")
     return articles[:limit]
 
 def render_articles_columnwise(results, show_limit, expanded_keywords):
