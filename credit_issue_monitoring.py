@@ -47,8 +47,6 @@ def is_credit_risk_news(text, keywords):
 
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
-    if selected_keywords and not all(re.search(k, content) for k in selected_keywords):
-        return False
     if enable_credit_filter and not is_credit_risk_news(content, credit_filter_keywords):
         return False
     return True
@@ -80,7 +78,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
                 continue
             if end_date and pub_date > end_date:
                 continue
-            if filters and not filter_by_issues(title, desc, filters):
+            if not filter_by_issues(title, desc, []):
                 continue
             articles.append({
                 "title": re.sub("<.*?>", "", title),
@@ -105,7 +103,7 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
         for item in data.get("articles", []):
             title = item.get("title", "")
             desc = item.get("description", "")
-            if filters and not filter_by_issues(title, desc, filters):
+            if not filter_by_issues(title, desc, []):
                 continue
             pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
             articles.append({
@@ -163,15 +161,14 @@ with col3:
 
 start_date = st.date_input("시작일")
 end_date = st.date_input("종료일")
-filters = st.multiselect("⭐ 필터링 키워드 선택", all_filter_keywords)
 
 with st.expander("\U0001F6E1️ 신용위험 필터 옵션"):
     enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=True)
-    custom_credit_keywords = st.text_area(
-        "신용위험 관련 키워드 (쉼표로 구분)", 
-        value=", ".join(default_credit_issue_patterns)
+    credit_filter_keywords = st.multiselect(
+        "신용위험 관련 키워드 (하나 이상 선택)",
+        options=default_credit_issue_patterns,
+        default=default_credit_issue_patterns
     )
-    credit_filter_keywords = [k.strip() for k in custom_credit_keywords.split(",") if k.strip()]
 
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
@@ -197,9 +194,9 @@ def send_to_telegram(keyword, articles):
 def process_keywords(keyword_list):
     for k in keyword_list:
         if api_choice == "Naver":
-            articles = fetch_naver_news(k, start_date, end_date, filters)
+            articles = fetch_naver_news(k, start_date, end_date, [])
         else:
-            articles = fetch_newsapi_news(k, start_date, end_date, filters, language=language)
+            articles = fetch_newsapi_news(k, start_date, end_date, [], language=language)
         search_results[k] = articles
         show_limit[k] = 5
         st.session_state.show_limit[k] = 5
