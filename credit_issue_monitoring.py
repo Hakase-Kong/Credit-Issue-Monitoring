@@ -92,7 +92,7 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
     newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
-        response = newsapi.get_everything(
+        response = newsapi.get_top_headlines(
             q=query,
             from_param=start_date.strftime("%Y-%m-%d") if start_date else None,
             to=end_date.strftime("%Y-%m-%d") if end_date else None,
