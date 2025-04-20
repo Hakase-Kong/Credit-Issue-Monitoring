@@ -11,7 +11,6 @@ from collections import Counter
 # --- API 키 설정 ---
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
-NEWS_API_KEY = "3a33b7b756274540926aeea8df60637c"
 
 # --- 텔레그램 설정 ---
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
@@ -87,43 +86,38 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def fetch_newsapi_news(query, filters=None, limit=100):
+def fetch_gnews_news(query, limit=100):
+    GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
     articles = []
     try:
-        url = "https://newsapi.org/v2/top-headlines"
+        url = f"https://gnews.io/api/v4/search"
         params = {
             "q": query,
-            "language": "en",
-            "pageSize": 100,
-            "apiKey": NEWS_API_KEY
+            "lang": "en",
+            "token": GNEWS_API_KEY,
+            "max": limit
         }
         response = requests.get(url, params=params)
-
         if response.status_code != 200:
-            st.warning(f"❌ NewsAPI 요청 실패 - 상태 코드: {response.status_code}")
+            st.warning(f"❌ GNews 요청 실패 - 상태 코드: {response.status_code}")
             return []
 
         data = response.json()
-
-        if "articles" not in data:
-            st.warning("❌ NewsAPI 응답에 기사 데이터가 없습니다.")
-            return []
-
-        for item in data["articles"]:
+        for item in data.get("articles", []):
             title = item.get("title", "")
             desc = item.get("description", "")
             if not filter_by_issues(title, desc, []):
                 continue
-            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date() if "publishedAt" in item else datetime.today().date()
+            pub_date = datetime.strptime(item["publishedAt"][:10], "%Y-%m-%d").date()
             articles.append({
                 "title": title,
                 "link": item.get("url", ""),
                 "date": pub_date.strftime("%Y-%m-%d"),
-                "source": "NewsAPI"
+                "source": "GNews"
             })
     except Exception as e:
-        st.warning(f"⚠️ NewsAPI 접근 오류: {e}")
-    return articles[:limit]
+        st.warning(f"⚠️ GNews 접근 오류: {e}")
+    return articles
 
 def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
