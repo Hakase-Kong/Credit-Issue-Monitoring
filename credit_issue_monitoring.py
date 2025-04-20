@@ -88,20 +88,17 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100):
+def fetch_newsapi_news(query, filters=None, limit=100):
     newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
         response = newsapi.get_top_headlines(
             q=query,
-            from_param=start_date.strftime("%Y-%m-%d") if start_date else None,
-            to=end_date.strftime("%Y-%m-%d") if end_date else None,
-            sort_by="publishedAt",
-            page_size=100,
-            language="en"
+            language="en",
+            page_size=100
         )
         if not response or "articles" not in response:
-            st.warning("❌ NewsAPI 응답이 올바르지 않습니다. 키워드 또는 날짜 조건을 확인해주세요.")
+            st.warning("❌ NewsAPI 응답이 없습니다. 키워드 또는 언어 조건 확인해주세요.")
             return []
 
         for item in response["articles"]:
@@ -109,7 +106,7 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
             desc = item.get("description", "")
             if not filter_by_issues(title, desc, []):
                 continue
-            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date()
+            pub_date = datetime.strptime(item["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").date() if "publishedAt" in item else datetime.today().date()
             articles.append({
                 "title": title,
                 "link": item.get("url", ""),
