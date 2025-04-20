@@ -88,7 +88,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
             })
     return articles[:limit]
 
-def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100, language="en"):
+def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limit=100):
     newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
@@ -96,7 +96,6 @@ def fetch_newsapi_news(query, start_date=None, end_date=None, filters=None, limi
             q=query,
             from_param=start_date.strftime("%Y-%m-%d") if start_date else None,
             to=end_date.strftime("%Y-%m-%d") if end_date else None,
-            language=language,
             sort_by="publishedAt",
             page_size=100
         )
@@ -145,9 +144,6 @@ st.set_page_config(layout="wide")
 
 st.markdown("<h1 style='color:#1a1a1a;'>\U0001F4CA Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
-language = st.selectbox("뉴스 언어 설정 (NewsAPI만 해당)", ["en", "de", "fr", "it", "es", "ru", "zh"])
-
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
     keywords_input = st.text_input("\U0001F50D 키워드 (예: 삼성, 한화)", value="")
@@ -191,12 +187,15 @@ def send_to_telegram(keyword, articles):
         except Exception as e:
             st.warning(f"텔레그램 전송 오류: {e}")
 
+def is_english(text):
+    return all(ord(c) < 128 for c in text if c.isalpha())
+
 def process_keywords(keyword_list):
     for k in keyword_list:
-        if api_choice == "Naver":
-            articles = fetch_naver_news(k, start_date, end_date, [])
+        if is_english(k):
+            articles = fetch_newsapi_news(k, start_date, end_date, [])
         else:
-            articles = fetch_newsapi_news(k, start_date, end_date, [], language=language)
+            articles = fetch_naver_news(k, start_date, end_date, [])
         search_results[k] = articles
         show_limit[k] = 5
         st.session_state.show_limit[k] = 5
