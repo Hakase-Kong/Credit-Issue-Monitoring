@@ -1,9 +1,13 @@
+# 기존 코드와 통합되도록 전체 구성된 코드 (핵심 필터링만 추가)
+# 기존 구조는 유지하면서 신용위험 필터를 UI에서 조절 가능하도록 개선
+
 import streamlit as st
 from newsapi import NewsApiClient
 import requests
 import re
 from datetime import datetime
 import telepot
+from collections import Counter
 
 # --- API 키 설정 ---
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
@@ -20,6 +24,13 @@ finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
 favorite_keywords = set()
 
+# --- 신용위험 키워드 필터 초기값 ---
+default_credit_issue_patterns = [
+    "신용등급", "신용평가", "하향", "상향", "강등", "조정", "부도",
+    "파산", "디폴트", "채무불이행", "적자", "영업손실", "현금흐름", "자금난",
+    "재무위험", "부정적 전망", "긍정적 전망", "기업회생", "워크아웃", "구조조정", "자본잠식"
+]
+
 class Telegram:
     def __init__(self):
         self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
@@ -27,10 +38,22 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
 
+# --- 필터 함수 ---
+def is_credit_risk_news(text, keywords):
+    for word in keywords:
+        if re.search(word, text, re.IGNORECASE):
+            return True
+    return False
+
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
-    return all(re.search(k, content) for k in selected_keywords)
+    if selected_keywords and not all(re.search(k, content) for k in selected_keywords):
+        return False
+    if enable_credit_filter and not is_credit_risk_news(content, credit_filter_keywords):
+        return False
+    return True
 
+# --- 뉴스 수집 함수 ---
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -99,7 +122,7 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
         with cols[idx]:
-            st.markdown(f"### 📁 {keyword}")
+            st.markdown(f"### \U0001F4C1 {keyword}")
             articles_to_show = articles[:show_limit.get(keyword, 5)]
             for article in articles_to_show:
                 st.markdown(f"""
@@ -119,16 +142,17 @@ def render_articles_columnwise(results, show_limit, expanded_keywords):
                     expanded_keywords.add(keyword)
                     show_limit[keyword] += 5
 
+# --- Streamlit 설정 ---
 st.set_page_config(layout="wide")
 
-st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color:#1a1a1a;'>\U0001F4CA Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
 api_choice = st.selectbox("API 선택", ["Naver", "NewsAPI"])
 language = st.selectbox("뉴스 언어 설정 (NewsAPI만 해당)", ["en", "de", "fr", "it", "es", "ru", "zh"])
 
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
-    keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
+    keywords_input = st.text_input("\U0001F50D 키워드 (예: 삼성, 한화)", value="")
 with col2:
     search_clicked = st.button("검색")
 with col3:
@@ -140,6 +164,14 @@ with col3:
 start_date = st.date_input("시작일")
 end_date = st.date_input("종료일")
 filters = st.multiselect("⭐ 필터링 키워드 선택", all_filter_keywords)
+
+with st.expander("\U0001F6E1️ 신용위험 필터 옵션"):
+    enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=True)
+    custom_credit_keywords = st.text_area(
+        "신용위험 관련 키워드 (쉼표로 구분)", 
+        value=", ".join(default_credit_issue_patterns)
+    )
+    credit_filter_keywords = [k.strip() for k in custom_credit_keywords.split(",") if k.strip()]
 
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
