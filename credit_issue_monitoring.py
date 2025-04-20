@@ -195,7 +195,7 @@ def is_english(text):
 def process_keywords(keyword_list):
     for k in keyword_list:
         if is_english(k):
-            articles = fetch_newsapi_news(k, start_date, end_date, [])
+            articles = fetch_newsapi_news(k)  # ✅ 인자 수정
         else:
             articles = fetch_naver_news(k, start_date, end_date, [])
         search_results[k] = articles
