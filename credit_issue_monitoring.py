@@ -92,13 +92,22 @@ def fetch_newsapi_news(query, filters=None, limit=100):
     newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
-        response = newsapi.get_top_headlines(
-            q=query,
-            language="en",
-            page_size=100
+        response_raw = requests.get(
+            "https://newsapi.org/v2/top-headlines",
+            params={
+                "q": query,
+                "language": "en",
+                "pageSize": 100,
+                "apiKey": NEWS_API_KEY
+            }
         )
+        print("📡 응답 상태코드:", response_raw.status_code)
+        print("📡 응답 내용:", response_raw.text)
+
+        response = response_raw.json()
+
         if not response or "articles" not in response:
-            st.warning("❌ NewsAPI 응답이 없습니다. 키워드 또는 언어 조건 확인해주세요.")
+            st.warning("❌ NewsAPI 응답이 올바르지 않습니다. 키워드 또는 언어 조건 확인해주세요.")
             return []
 
         for item in response["articles"]:
