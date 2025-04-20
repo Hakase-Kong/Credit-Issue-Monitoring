@@ -2,7 +2,6 @@
 # 기존 구조는 유지하면서 신용위험 필터를 UI에서 조절 가능하도록 개선
 
 import streamlit as st
-from newsapi import NewsApiClient
 import requests
 import re
 from datetime import datetime
@@ -89,28 +88,28 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
     return articles[:limit]
 
 def fetch_newsapi_news(query, filters=None, limit=100):
-    newsapi = NewsApiClient(api_key=NEWS_API_KEY)
     articles = []
     try:
-        response_raw = requests.get(
-            "https://newsapi.org/v2/top-headlines",
-            params={
-                "q": query,
-                "language": "en",
-                "pageSize": 100,
-                "apiKey": NEWS_API_KEY
-            }
-        )
-        print("📡 응답 상태코드:", response_raw.status_code)
-        print("📡 응답 내용:", response_raw.text)
+        url = "https://newsapi.org/v2/top-headlines"
+        params = {
+            "q": query,
+            "language": "en",
+            "pageSize": 100,
+            "apiKey": NEWS_API_KEY
+        }
+        response = requests.get(url, params=params)
 
-        response = response_raw.json()
-
-        if not response or "articles" not in response:
-            st.warning("❌ NewsAPI 응답이 올바르지 않습니다. 키워드 또는 언어 조건 확인해주세요.")
+        if response.status_code != 200:
+            st.warning(f"❌ NewsAPI 요청 실패 - 상태 코드: {response.status_code}")
             return []
 
-        for item in response["articles"]:
+        data = response.json()
+
+        if "articles" not in data:
+            st.warning("❌ NewsAPI 응답에 기사 데이터가 없습니다.")
+            return []
+
+        for item in data["articles"]:
             title = item.get("title", "")
             desc = item.get("description", "")
             if not filter_by_issues(title, desc, []):
