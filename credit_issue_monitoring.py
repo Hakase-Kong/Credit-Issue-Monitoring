@@ -1,15 +1,16 @@
-# 기존 코드와 통합되도록 전체 구성된 코드 (GNews 연동 + 더보기 문제 해결)
+# 기존 코드와 통합되도록 전체 구성된 코드 (핵심 필터링만 추가)
+# 기존 구조는 유지하면서 신용위험 필터를 UI에서 조절 가능하도록 개선
 
 import streamlit as st
 import requests
 import re
 from datetime import datetime
 import telepot
+from collections import Counter
 
 # --- API 키 설정 ---
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
-GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
 
 # --- 텔레그램 설정 ---
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
@@ -35,6 +36,7 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
 
+# --- 필터 함수 ---
 def is_credit_risk_news(text, keywords):
     for word in keywords:
         if re.search(word, text, re.IGNORECASE):
@@ -43,10 +45,11 @@ def is_credit_risk_news(text, keywords):
 
 def filter_by_issues(title, desc, selected_keywords):
     content = title + " " + desc
-    if st.session_state.enable_credit_filter and not is_credit_risk_news(content, st.session_state.credit_filter_keywords):
+    if enable_credit_filter and not is_credit_risk_news(content, credit_filter_keywords):
         return False
     return True
 
+# --- 뉴스 수집 함수 ---
 def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=100):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -84,9 +87,10 @@ def fetch_naver_news(query, start_date=None, end_date=None, filters=None, limit=
     return articles[:limit]
 
 def fetch_gnews_news(query, limit=100):
+    GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
     articles = []
     try:
-        url = "https://gnews.io/api/v4/search"
+        url = f"https://gnews.io/api/v4/search"
         params = {
             "q": query,
             "lang": "en",
@@ -115,13 +119,13 @@ def fetch_gnews_news(query, limit=100):
         st.warning(f"⚠️ GNews 접근 오류: {e}")
     return articles
 
-def render_articles_columnwise(results):
+def render_articles_columnwise(results, show_limit, expanded_keywords):
     cols = st.columns(len(results))
     for idx, (keyword, articles) in enumerate(results.items()):
         with cols[idx]:
-            st.markdown(f"### 📁 {keyword}")
-            show_n = st.session_state.show_limit.get(keyword, 5)
-            for article in articles[:show_n]:
+            st.markdown(f"### \U0001F4C1 {keyword}")
+            articles_to_show = articles[:show_limit.get(keyword, 5)]
+            for article in articles_to_show:
                 st.markdown(f"""
                     <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
                         <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
@@ -134,48 +138,19 @@ def render_articles_columnwise(results):
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-            if show_n < len(articles):
+            if len(articles) > show_limit.get(keyword, 5):
                 if st.button(f"더보기", key=f"more_{keyword}"):
-                    st.session_state.show_limit[keyword] += 5
+                    expanded_keywords.add(keyword)
+                    show_limit[keyword] += 5
 
-def is_english(text):
-    return all(ord(c) < 128 for c in text if c.isalpha())
-
-def send_to_telegram(keyword, articles):
-    if articles:
-        msg = f"*[{keyword}] 관련 상위 뉴스 5건:*
-"
-        for a in articles:
-            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
-            msg += f"- [{title}]({a['link']})\n"
-        try:
-            Telegram().send_message(msg)
-        except Exception as e:
-            st.warning(f"텔레그램 전송 오류: {e}")
-
-def process_keywords(keyword_list, start_date, end_date):
-    for k in keyword_list:
-        if is_english(k):
-            articles = fetch_gnews_news(k)
-        else:
-            articles = fetch_naver_news(k, start_date, end_date)
-        st.session_state.search_results[k] = articles
-        st.session_state.show_limit[k] = 5
-        send_to_telegram(k, articles[:5])
-
-# --- Streamlit 초기 설정 ---
+# --- Streamlit 설정 ---
 st.set_page_config(layout="wide")
-st.markdown("<h1 style='color:#1a1a1a;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- 세션 상태 초기화 ---
-for key in ["search_results", "show_limit", "expanded_keywords"]:
-    if key not in st.session_state:
-        st.session_state[key] = {} if key != "expanded_keywords" else set()
+st.markdown("<h1 style='color:#1a1a1a;'>\U0001F4CA Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- UI 입력 ---
 col1, col2, col3 = st.columns([4, 1, 1])
 with col1:
-    keywords_input = st.text_input("🔍 키워드 (예: 삼성, 한화)", value="")
+    keywords_input = st.text_input("\U0001F50D 키워드 (예: 삼성, 한화)", value="")
 with col2:
     search_clicked = st.button("검색")
 with col3:
@@ -187,9 +162,9 @@ with col3:
 start_date = st.date_input("시작일")
 end_date = st.date_input("종료일")
 
-with st.expander("🛡️ 신용위험 필터 옵션"):
-    st.session_state.enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=True)
-    st.session_state.credit_filter_keywords = st.multiselect(
+with st.expander("\U0001F6E1️ 신용위험 필터 옵션"):
+    enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=True)
+    credit_filter_keywords = st.multiselect(
         "신용위험 관련 키워드 (하나 이상 선택)",
         options=default_credit_issue_patterns,
         default=default_credit_issue_patterns
@@ -201,17 +176,55 @@ with fav_col1:
 with fav_col2:
     fav_search_clicked = st.button("즐겨찾기로 검색")
 
+search_results = {}
+show_limit = {}
+expanded_keywords = set()
+
+def send_to_telegram(keyword, articles):
+    if articles:
+        msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
+        for a in articles:
+            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
+            msg += f"- [{title}]({a['link']})\n"
+        try:
+            Telegram().send_message(msg)
+        except Exception as e:
+            st.warning(f"텔레그램 전송 오류: {e}")
+
+def is_english(text):
+    return all(ord(c) < 128 for c in text if c.isalpha())
+
+def process_keywords(keyword_list):
+    for k in keyword_list:
+        if is_english(k):
+            articles = fetch_gnews_news(k)  # ✅ 함수명 수정
+        else:
+            articles = fetch_naver_news(k, start_date, end_date, [])
+        search_results[k] = articles
+        show_limit[k] = 5
+        st.session_state.show_limit[k] = 5
+        send_to_telegram(k, articles[:5])
+
+if "show_limit" not in st.session_state:
+    st.session_state.show_limit = {}
+if "expanded_keywords" not in st.session_state:
+    st.session_state.expanded_keywords = set()
+
 if search_clicked and keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
         st.warning("키워드는 최대 10개까지 입력 가능합니다.")
     else:
         with st.spinner("뉴스 검색 중..."):
-            process_keywords(keyword_list, start_date, end_date)
+            process_keywords(keyword_list)
 
 if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
-        process_keywords(fav_selected, start_date, end_date)
+        process_keywords(fav_selected)
 
-if st.session_state.search_results:
-    render_articles_columnwise(st.session_state.search_results)
+for keyword in st.session_state.expanded_keywords:
+    if keyword in show_limit:
+        show_limit[keyword] += 10
+
+if search_results:
+    render_articles_columnwise(search_results, show_limit, st.session_state.expanded_keywords)
