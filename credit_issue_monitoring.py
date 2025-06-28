@@ -141,7 +141,7 @@ def render_articles_columnwise(results, show_limit):
             if len(articles) > show_limit.get(keyword, 5):
                 if st.button(f"더보기", key=f"more_{keyword}"):
                     st.session_state.show_limit[keyword] += 5
-                    st.experimental_rerun()
+                    st.rerun()
 
 def send_to_telegram(keyword, articles):
     if articles:
