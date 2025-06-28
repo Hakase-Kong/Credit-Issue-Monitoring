@@ -187,13 +187,15 @@ def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, c
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# 1. 키워드 입력 및 버튼 한 줄에 정렬
+# 1. 키워드 입력 및 버튼 한 줄에 정렬 (y축 맞춤)
 col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
     keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="")
 with col2:
+    st.write("")  # y축 맞춤용 placeholder
     search_clicked = st.button("검색", use_container_width=True)
 with col3:
+    st.write("")  # y축 맞춤용 placeholder
     fav_add_clicked = st.button("⭐ 즐겨찾기 추가", use_container_width=True)
     if fav_add_clicked:
         new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
@@ -217,11 +219,12 @@ with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
         key="credit_filter"
     )
 
-# 4. 즐겨찾기 검색 영역
+# 4. 즐겨찾기 검색 영역 (y축 맞춤)
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
     fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords))
 with fav_col2:
+    st.write("")  # y축 맞춤용 placeholder
     fav_search_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
 
 # 5. 검색 및 즐겨찾기 검색 처리
