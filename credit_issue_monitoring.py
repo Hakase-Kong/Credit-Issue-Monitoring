@@ -8,18 +8,15 @@ import telepot
 st.markdown("""
     <style>
         .block-container {padding-top: 2rem; padding-bottom: 2rem;}
-        .stButton button {margin-top: 14px; margin-bottom: 6px; border-radius: 8px;}
+        .stButton button {margin-top: 6px; margin-bottom: 6px; border-radius: 8px;}
         .stTextInput > div > div > input {font-size: 16px;}
         .stMultiSelect [data-baseweb="tag"] {
             background-color: #fff0f0 !important;
             color: #d60000 !important;
             border: 1px solid #d60000 !important;
         }
-        label[for="credit_filter"] {
-            color: #d60000 !important;
-            font-weight: bold;
-        }
         .stMultiSelect label { color: #d60000 !important; font-weight: bold;}
+        .stSelectbox, .stDateInput, .stMultiSelect {margin-bottom: 0.5rem;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -195,17 +192,15 @@ def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, c
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# 1. 키워드 입력 및 버튼 한 줄에 정렬 (y축 맞춤 - 버튼 두 줄 내려서 완전히 맞춤)
+# 1. 키워드 입력 및 버튼 한 줄에 정렬 (y축 맞춤 - 버튼 한 번만 내림)
 col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
     keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="")
 with col2:
-    st.write("")
-    st.write("")  # y축 맞춤용 placeholder (2번)
+    st.write("")  # y축 맞춤용 placeholder (1번)
     search_clicked = st.button("검색", use_container_width=True)
 with col3:
-    st.write("")
-    st.write("")  # y축 맞춤용 placeholder (2번)
+    st.write("")  # y축 맞춤용 placeholder (1번)
     fav_add_clicked = st.button("⭐ 즐겨찾기 추가", use_container_width=True)
     if fav_add_clicked:
         new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
@@ -234,8 +229,7 @@ fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
     fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords))
 with fav_col2:
-    st.write("")
-    st.write("")  # y축 맞춤용 placeholder (2번)
+    st.write("")  # y축 맞춤용 placeholder (1번)
     fav_search_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
 
 # 5. 검색 및 즐겨찾기 검색 처리
