@@ -96,24 +96,18 @@ with btn_col:
     st.write("")
     category_search_clicked = st.button("🔍 검색", use_container_width=True)
 
-# 필터 함수 수정
+# 필터 함수
 def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
-    # 제목에 키워드 포함 여부 확인 (옵션)
     if require_keyword_in_title and selected_keywords:
         if not any(kw.lower() in title.lower() for kw in selected_keywords):
             return False
-
-    # 신용이슈 필터
     if enable_credit_filter and not is_credit_risk_news(title + " " + desc, credit_filter_keywords):
         return False
-
     return True
 
-# 신용위험 필터 함수 (예시)
 def is_credit_risk_news(text, keywords):
     return any(kw in text for kw in keywords)
 
-# fetch_naver_news 수정
 def fetch_naver_news(query, start_date=None, end_date=None, enable_credit_filter=True, credit_filter_keywords=None, limit=100, require_keyword_in_title=False):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -150,7 +144,6 @@ def fetch_naver_news(query, start_date=None, end_date=None, enable_credit_filter
             })
     return articles[:limit]
 
-# fetch_gnews_news 수정
 def fetch_gnews_news(query, enable_credit_filter=True, credit_filter_keywords=None, limit=100, require_keyword_in_title=False):
     GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
     articles = []
@@ -183,51 +176,9 @@ def fetch_gnews_news(query, enable_credit_filter=True, credit_filter_keywords=No
         st.warning(f"⚠️ GNews 접근 오류: {e}")
     return articles
 
-def render_articles_columnwise(results, show_limit):
-    col_count = min(len(results), 4)
-    cols = st.columns(col_count)
-    for idx, (keyword, articles) in enumerate(results.items()):
-        with cols[idx % col_count]:
-            st.markdown(
-                f"<span style='font-size:22px;font-weight:700;'>📁 {keyword}</span>",
-                unsafe_allow_html=True
-            )
-            articles_to_show = articles[:show_limit.get(keyword, 5)]
-            for article in articles_to_show:
-                st.markdown(
-                    f"""
-                    <div style='margin-bottom: 12px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
-                        <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
-                            <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
-                                {article['title']}
-                            </a>
-                        </div>
-                        <div style='font-size: 12px; color: gray;'>
-                            {article['date']} | {article['source']}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
-            if len(articles) > show_limit.get(keyword, 5):
-                if st.button("더보기", key=f"more_{keyword}", use_container_width=True):
-                    st.session_state.show_limit[keyword] += 5
-                    st.rerun()
-
-def send_to_telegram(keyword, articles):
-    if articles:
-        msg = f"*[{keyword}] 관련 상위 뉴스 5건:*\n"
-        for a in articles:
-            title = re.sub(r"[\U00010000-\U0010ffff]", "", a['title'])
-            msg += f"- [{title}]({a['link']})\n"
-        try:
-            Telegram().send_message(msg)
-        except Exception as e:
-            st.warning(f"텔레그램 전송 오류: {e}")
-
 def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
-# process_keywords 수정
 def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
     for k in keyword_list:
         if is_english(k):
@@ -236,9 +187,7 @@ def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, c
             articles = fetch_naver_news(k, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=require_keyword_in_title)
         st.session_state.search_results[k] = articles
         st.session_state.show_limit[k] = 5
-        send_to_telegram(k, articles[:5])
 
-# --- 요약 API 호출 함수 (자동 언어 감지 포함 + 텔레그램 전송 포함) ---
 def detect_lang_from_title(title):
     return "ko" if re.search(r"[가-힣]", title) else "en"
 
@@ -249,78 +198,74 @@ def summarize_article_from_url(article_url, title):
             "x-rapidapi-key": "3558ef6abfmshba1bd48265c6fc4p101a63jsnb2c1ee3d33c4",
             "x-rapidapi-host": "article-extractor-and-summarizer.p.rapidapi.com"
         }
-
         lang = detect_lang_from_title(title)
         params = {
             "url": article_url,
             "lang": lang,
             "engine": "2"
         }
-
         response = requests.get(api_url, headers=headers, params=params)
         response.raise_for_status()
         result = response.json()
-
         summary = result.get("summary", "요약 결과 없음")
         full_text = result.get("text", "본문 없음")
-
-        # 텔레그램 전송
-        message = f"*[{title}]*\n{summary}"
-        Telegram().send_message(message)
-
         return summary, full_text
-
     except Exception as e:
         return f"요약 오류: {e}", None
 
-# --- 기사 필터 정확도 개선 함수 (제목 + 설명 + 요약까지 조건 만족 시 노출) ---
-def is_relevant_article(title, description, summary, keywords):
-    text = f"{title} {description} {summary}"
-    return any(kw.lower() in text.lower() for kw in keywords)
+# --- 기사 선택 및 요약/전송 UI ---
+def render_articles_with_single_summary_and_telegram(results, show_limit):
+    # 모든 기사들을 하나의 리스트로 모으고, (카테고리, 인덱스)로 식별
+    all_articles = []
+    article_keys = []
+    for keyword, articles in results.items():
+        for idx, article in enumerate(articles[:show_limit.get(keyword, 5)]):
+            all_articles.append(f"[{keyword}] {article['title']} ({article['date']} | {article['source']})")
+            article_keys.append((keyword, idx))
 
-# --- 기사 카드 UI 수정: 요약 버튼 추가 ---
-def render_articles_columnwise_with_summary(results, show_limit):
-    col_count = min(len(results), 4)
-    cols = st.columns(col_count)
-    for idx, (keyword, articles) in enumerate(results.items()):
-        with cols[idx % col_count]:
-            st.markdown(
-                f"<span style='font-size:22px;font-weight:700;'>📁 {keyword}</span>",
-                unsafe_allow_html=True
-            )
-            articles_to_show = articles[:show_limit.get(keyword, 5)]
-            for i, article in enumerate(articles_to_show):
-                with st.container():
-                    st.markdown(
-                        f"""
-                        <div style='margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
-                            <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
-                                <a href="{article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
-                                    {article['title']}
-                                </a>
-                            </div>
-                            <div style='font-size: 12px; color: gray;'>
-                                {article['date']} | {article['source']}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    # 요약 버튼
-                    if st.button("요약", key=f"summary_{keyword}_{i}", use_container_width=True):
-                        with st.spinner("기사 요약 중..."):
-                            summary, full_text = summarize_article_from_url(article['link'], article['title'])
-                            if full_text:
-                                st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
-                                st.write(summary)
-                            else:
-                                st.warning(summary)
+    if not all_articles:
+        st.info("검색 결과가 없습니다.")
+        return
 
-            # 더보기 버튼
-            if len(articles) > show_limit.get(keyword, 5):
-                if st.button("더보기", key=f"more_{keyword}", use_container_width=True):
-                    st.session_state.show_limit[keyword] += 5
-                    st.rerun()
+    # 기사 선택 라디오 버튼
+    selected_idx = st.radio("요약/텔레그램 전송할 기사를 선택하세요.", range(len(all_articles)), format_func=lambda i: all_articles[i], key="article_selector")
+    
+    # 선택된 기사 정보
+    selected_keyword, selected_article_idx = article_keys[selected_idx]
+    selected_article = st.session_state.search_results[selected_keyword][selected_article_idx]
+    
+    # 기사 내용 미리보기
+    st.markdown(f"""
+    <div style='margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
+        <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
+            <a href="{selected_article['link']}" target="_blank" style='text-decoration: none; color: #1155cc;'>
+                {selected_article['title']}
+            </a>
+        </div>
+        <div style='font-size: 12px; color: gray;'>
+            {selected_article['date']} | {selected_article['source']}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 요약 버튼
+    if st.button("🔍 선택 기사 요약"):
+        with st.spinner("기사 요약 중..."):
+            summary, full_text = summarize_article_from_url(selected_article['link'], selected_article['title'])
+            if full_text:
+                st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
+                st.write(summary)
+            else:
+                st.warning(summary)
+    
+    # 텔레그램 전송 버튼
+    if st.button("✈️ 선택 기사 텔레그램 전송"):
+        try:
+            msg = f"*[{selected_article['title']}]({selected_article['link']})*\n{selected_article['date']} | {selected_article['source']}"
+            Telegram().send_message(msg)
+            st.success("텔레그램으로 전송되었습니다!")
+        except Exception as e:
+            st.warning(f"텔레그램 전송 오류: {e}")
 
 # --- Streamlit 설정 ---
 st.set_page_config(layout="wide")
@@ -358,7 +303,6 @@ with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
         key="credit_filter"
     )
 
-# Streamlit 인터페이스 내에 옵션 추가
 with st.expander("🔍 키워드 필터 옵션", expanded=True):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=True)
 
@@ -370,7 +314,6 @@ with fav_col2:
     st.write("")
     fav_search_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
 
-# 5. 검색 및 즐겨찾기 검색 처리
 search_clicked = False
 
 if keywords_input:
@@ -409,4 +352,4 @@ if category_search_clicked and selected_categories:
 
 # --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
-    render_articles_columnwise_with_summary(st.session_state.search_results, st.session_state.show_limit)
+    render_articles_with_single_summary_and_telegram(st.session_state.search_results, st.session_state.show_limit)
