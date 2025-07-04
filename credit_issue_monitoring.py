@@ -67,16 +67,6 @@ if "favorite_keywords" not in st.session_state:
 for category_keywords in favorite_categories.values():
     st.session_state.favorite_keywords.update(category_keywords)
 
-# --- 즐겨찾기 카테고리 선택 및 키워드 반영 ---
-st.markdown("**즐겨찾기 카테고리 선택**")
-category_col, keyword_col = st.columns([1, 3])
-with category_col:
-    selected_categories = st.selectbox("카테고리 선택", ["선택 안 함"] + list(favorite_categories.keys()), key="category_select")
-    if selected_categories != "선택 안 함":
-        st.session_state.favorite_keywords.update(favorite_categories[selected_categories])
-with keyword_col:
-    fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords))
-
 
 # --- 즐겨찾기 카테고리 선택 ---
 st.markdown("**즐겨찾기 카테고리 선택**")
