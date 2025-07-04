@@ -28,6 +28,15 @@ NAVER_CLIENT_SECRET = "lZc2gScgNq"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
+# --- Telegram 클래스 정의 ---
+class Telegram:
+    def __init__(self):
+        self.bot = telepot.Bot(TELEGRAM_TOKEN)
+        self.chat_id = TELEGRAM_CHAT_ID
+
+    def send_message(self, message):
+        self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
+
 # --- 키워드 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
@@ -42,7 +51,7 @@ default_credit_issue_patterns = [
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
-    "보험사": ["현대해상", "농협생명", "메리츠화재", "교보생명", "상성화재", "삼성생명", "신한라이프", "흥국생명", "동양생명", "미래에셋생명"],
+    "보험사": ["현대해상", "농협생명", "메리츠화재", "교보생명", "삼성화재", "삼성생명", "신한라이프", "흥국생명", "동양생명", "미래에셋생명"],
     "5대금융지주": ["신한금융", "하나금융", "KB금융", "농협금융", "우리금융"],
     "5대시중은행": ["농협은행", "국민은행", "신한은행", "우리은행", "하나은행"],
     "카드사": ["KB국민카드", "현대카드", "신한카드", "비씨카드", "삼성카드"],
@@ -76,7 +85,6 @@ if "search_triggered" not in st.session_state:
 for category_keywords in favorite_categories.values():
     st.session_state.favorite_keywords.update(category_keywords)
 
-
 # --- 즐겨찾기 카테고리 선택 ---
 st.markdown("**즐겨찾기 카테고리 선택**")
 cat_col, btn_col = st.columns([5, 1])
@@ -88,9 +96,7 @@ with btn_col:
     st.write("")
     category_search_clicked = st.button("🔍 검색", use_container_width=True)
 
-    
 # 필터 함수 수정
-
 def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
     # 제목에 키워드 포함 여부 확인 (옵션)
     if require_keyword_in_title and selected_keywords:
@@ -103,8 +109,11 @@ def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credi
 
     return True
 
-# fetch_naver_news 수정
+# 신용위험 필터 함수 (예시)
+def is_credit_risk_news(text, keywords):
+    return any(kw in text for kw in keywords)
 
+# fetch_naver_news 수정
 def fetch_naver_news(query, start_date=None, end_date=None, enable_credit_filter=True, credit_filter_keywords=None, limit=100, require_keyword_in_title=False):
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -141,9 +150,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, enable_credit_filter
             })
     return articles[:limit]
 
-
 # fetch_gnews_news 수정
-
 def fetch_gnews_news(query, enable_credit_filter=True, credit_filter_keywords=None, limit=100, require_keyword_in_title=False):
     GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
     articles = []
@@ -221,8 +228,7 @@ def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
 # process_keywords 수정
-
-def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title):
+def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
     for k in keyword_list:
         if is_english(k):
             articles = fetch_gnews_news(k, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=require_keyword_in_title)
@@ -231,7 +237,6 @@ def process_keywords(keyword_list, start_date, end_date, enable_credit_filter, c
         st.session_state.search_results[k] = articles
         st.session_state.show_limit[k] = 5
         send_to_telegram(k, articles[:5])
-
 
 # --- 요약 API 호출 함수 (자동 언어 감지 포함 + 텔레그램 전송 포함) ---
 def detect_lang_from_title(title):
@@ -317,7 +322,6 @@ def render_articles_columnwise_with_summary(results, show_limit):
                     st.session_state.show_limit[keyword] += 5
                     st.rerun()
 
-
 # --- Streamlit 설정 ---
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
@@ -353,7 +357,7 @@ with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
         default=default_credit_issue_patterns,
         key="credit_filter"
     )
-    
+
 # Streamlit 인터페이스 내에 옵션 추가
 with st.expander("🔍 키워드 필터 옵션", expanded=True):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=True)
@@ -365,7 +369,6 @@ with fav_col1:
 with fav_col2:
     st.write("")
     fav_search_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
-
 
 # 5. 검색 및 즐겨찾기 검색 처리
 search_clicked = False
@@ -402,7 +405,8 @@ if category_search_clicked and selected_categories:
             enable_credit_filter,
             credit_filter_keywords,
             require_keyword_in_title
-        )        
+        )
+
 # --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
     render_articles_columnwise_with_summary(st.session_state.search_results, st.session_state.show_limit)
