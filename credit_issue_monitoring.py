@@ -63,6 +63,15 @@ favorite_categories = {
 if "favorite_keywords" not in st.session_state:
     st.session_state.favorite_keywords = set()
 
+if "search_results" not in st.session_state:
+    st.session_state.search_results = {}
+
+if "show_limit" not in st.session_state:
+    st.session_state.show_limit = {}
+
+if "search_triggered" not in st.session_state:
+    st.session_state.search_triggered = False
+
 # --- 즐겨찾기 초기 등록 ---
 for category_keywords in favorite_categories.values():
     st.session_state.favorite_keywords.update(category_keywords)
@@ -70,11 +79,16 @@ for category_keywords in favorite_categories.values():
 
 # --- 즐겨찾기 카테고리 선택 ---
 st.markdown("**즐겨찾기 카테고리 선택**")
-selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()))
-for cat in selected_categories:
-    st.session_state.favorite_keywords.update(favorite_categories[cat])
+cat_col, btn_col = st.columns([5, 1])
+with cat_col:
+    selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()))
+    for cat in selected_categories:
+        st.session_state.favorite_keywords.update(favorite_categories[cat])
+with btn_col:
+    st.write("")
+    category_search_clicked = st.button("🔍 검색", use_container_width=True)
 
-
+    
 # 필터 함수 수정
 
 def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
@@ -88,7 +102,6 @@ def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credi
         return False
 
     return True
-
 
 # fetch_naver_news 수정
 
@@ -377,6 +390,13 @@ if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(fav_selected, start_date, end_date, enable_credit_filter, credit_filter_keywords)
 
+if category_search_clicked and selected_categories:
+    with st.spinner("뉴스 검색 중..."):
+        keywords = set()
+        for cat in selected_categories:
+            keywords.update(favorite_categories[cat])
+        process_keywords(sorted(keywords), start_date, end_date, enable_credit_filter, credit_filter_keywords)
+        
 # --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
     render_articles_columnwise_with_summary(st.session_state.search_results, st.session_state.show_limit)
