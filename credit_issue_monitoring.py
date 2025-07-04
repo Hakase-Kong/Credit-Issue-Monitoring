@@ -38,6 +38,27 @@ default_credit_issue_patterns = [
     "재무위험", "부정적 전망", "긍정적 전망", "기업회생", "워크아웃", "구조조정", "자본잠식"
 ]
 
+# --- 즐겨찾기 카테고리 정의 ---
+favorite_categories = {
+    "국/공채": [],
+    "공공기관": [],
+    "보험사": ["현대해상", "농협생명", "메리츠화재", "교보생명", "상성화재", "삼성생명", "신한라이프", "흥국생명", "동양생명", "미래에셋생명"],
+    "5대금융지주": ["신한금융", "하나금융", "KB금융", "농협금융", "우리금융"],
+    "5대시중은행": ["농협은행", "국민은행", "신한은행", "우리은행", "하나은행"],
+    "카드사": ["KB국민카드", "현대카드", "신한카드", "비씨카드", "삼성카드"],
+    "캐피탈": ["한국캐피탈", "현대캐피탈"],
+    "지주사": ["SK이노베이션", "GS에너지", "SK", "GS"],
+    "에너지": ["SK가스", "GS칼텍스", "S-Oil", "SK에너지", "SK앤무브", "코리아에너지터미널"],
+    "발전": ["GS파워", "GSEPS", "삼천리"],
+    "자동차": ["LG에너지솔루션", "한온시스템", "포스코퓨처엠", "한국타이어"],
+    "전기/전자": ["SK하이닉스", "LG이노텍", "LG전자", "LS일렉트릭"],
+    "소비재": ["이마트", "LF", "CJ제일제당", "SK네트웍스", "CJ대한통운"],
+    "비철/철강": ["포스코", "현대제철", "고려아연"],
+    "석유화학": ["LG화학", "SK지오센트릭"],
+    "건설": ["포스코이앤씨"],
+    "특수채": ["주택도시보증공사", "기업은행"]
+}
+
 # --- 세션 상태 초기화 ---
 if "search_results" not in st.session_state:
     st.session_state.search_results = {}
@@ -48,17 +69,19 @@ if "expanded_keywords" not in st.session_state:
 if "favorite_keywords" not in st.session_state:
     st.session_state.favorite_keywords = set()
 
-class Telegram:
-    def __init__(self):
-        self.bot = telepot.Bot(token=TELEGRAM_TOKEN)
-    def send_message(self, message):
-        self.bot.sendMessage(TELEGRAM_CHAT_ID, message, parse_mode="Markdown")
+# --- 즐겨찾기 초기 등록 ---
+for category_keywords in favorite_categories.values():
+    st.session_state.favorite_keywords.update(category_keywords)
 
-def is_credit_risk_news(text, keywords):
-    for word in keywords:
-        if re.search(word, text, re.IGNORECASE):
-            return True
-    return False
+# --- 카테고리 검색 UI ---
+st.markdown("""---""")
+st.subheader("📂 즐겨찾기 카테고리 검색")
+selected_categories = st.multiselect("카테고리를 선택하세요", list(favorite_categories.keys()))
+if selected_categories:
+    for cat in selected_categories:
+        st.session_state.favorite_keywords.update(favorite_categories[cat])
+    st.success("선택한 카테고리의 키워드가 즐겨찾기에 추가되었습니다.")
+
 
 # 필터 함수 수정
 
