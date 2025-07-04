@@ -38,7 +38,7 @@ default_credit_issue_patterns = [
     "재무위험", "부정적 전망", "긍정적 전망", "기업회생", "워크아웃", "구조조정", "자본잠식"
 ]
 
-# --- 즐겨찾기 카테고리 정의 ---
+# --- 즐겨찾기 카테고리 ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -73,14 +73,12 @@ if "favorite_keywords" not in st.session_state:
 for category_keywords in favorite_categories.values():
     st.session_state.favorite_keywords.update(category_keywords)
 
-# --- 카테고리 검색 UI ---
-st.markdown("""---""")
-st.subheader("📂 즐겨찾기 카테고리 검색")
-selected_categories = st.multiselect("카테고리를 선택하세요", list(favorite_categories.keys()))
-if selected_categories:
-    for cat in selected_categories:
-        st.session_state.favorite_keywords.update(favorite_categories[cat])
-    st.success("선택한 카테고리의 키워드가 즐겨찾기에 추가되었습니다.")
+
+# --- 즐겨찾기 카테고리 선택 ---
+st.markdown("**즐겨찾기 카테고리 선택**")
+selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()))
+for cat in selected_categories:
+    st.session_state.favorite_keywords.update(favorite_categories[cat])
 
 
 # 필터 함수 수정
@@ -317,29 +315,29 @@ def render_articles_columnwise_with_summary(results, show_limit):
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# 1. 키워드 입력 및 버튼 한 줄에 정렬 (y축 맞춤 - 버튼 한 번만 내림)
+# --- 검색 UI ---
 col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
-    keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="")
+    keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="", on_change=lambda: st.session_state.__setitem__('search_triggered', True))
 with col2:
-    st.write("")  # y축 맞춤용 placeholder (1번)
+    st.write("")
     search_clicked = st.button("검색", use_container_width=True)
 with col3:
-    st.write("")  # y축 맞춤용 placeholder (1번)
+    st.write("")
     fav_add_clicked = st.button("⭐ 즐겨찾기 추가", use_container_width=True)
     if fav_add_clicked:
         new_keywords = {kw.strip() for kw in keywords_input.split(",") if kw.strip()}
         st.session_state.favorite_keywords.update(new_keywords)
         st.success("즐겨찾기에 추가되었습니다.")
 
-# 2. 날짜 입력 두 칸에 정렬
+# --- 날짜 입력 ---
 date_col1, date_col2 = st.columns([1, 1])
 with date_col1:
     start_date = st.date_input("시작일")
 with date_col2:
     end_date = st.date_input("종료일")
 
-# 3. 필터 옵션
+# --- 필터 옵션 ---
 with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
     enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=False)
     credit_filter_keywords = st.multiselect(
@@ -348,18 +346,19 @@ with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
         default=default_credit_issue_patterns,
         key="credit_filter"
     )
-
+    
 # Streamlit 인터페이스 내에 옵션 추가
 with st.expander("🔍 키워드 필터 옵션", expanded=True):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=True)
 
-# 4. 즐겨찾기 검색 영역 (y축 맞춤)
+# --- 즐겨찾기 검색 ---
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
     fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords))
 with fav_col2:
-    st.write("")  # y축 맞춤용 placeholder (1번)
+    st.write("")
     fav_search_clicked = st.button("즐겨찾기로 검색", use_container_width=True)
+
 
 # 5. 검색 및 즐겨찾기 검색 처리
 search_clicked = False
@@ -371,14 +370,19 @@ if keywords_input:
     else:
         search_clicked = True
 
-if search_clicked:
-    with st.spinner("뉴스 검색 중..."):
-        process_keywords(keyword_list, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title)
+if search_clicked or st.session_state.get("search_triggered"):
+    keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
+    if len(keyword_list) > 10:
+        st.warning("키워드는 최대 10개까지 입력 가능합니다.")
+    else:
+        with st.spinner("뉴스 검색 중..."):
+            process_keywords(keyword_list, start_date, end_date, enable_credit_filter, credit_filter_keywords)
+    st.session_state.search_triggered = False
 
 if fav_search_clicked and fav_selected:
     with st.spinner("뉴스 검색 중..."):
-        process_keywords(fav_selected, start_date, end_date, enable_credit_filter, credit_filter_keywords, require_keyword_in_title)
+        process_keywords(fav_selected, start_date, end_date, enable_credit_filter, credit_filter_keywords)
 
-# 6. 뉴스 결과 카드 컬럼 정렬
+# --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
     render_articles_columnwise_with_summary(st.session_state.search_results, st.session_state.show_limit)
