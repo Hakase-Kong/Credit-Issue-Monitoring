@@ -395,8 +395,14 @@ if category_search_clicked and selected_categories:
         keywords = set()
         for cat in selected_categories:
             keywords.update(favorite_categories[cat])
-        process_keywords(sorted(keywords), start_date, end_date, enable_credit_filter, credit_filter_keywords)
-        
+        process_keywords(
+            sorted(keywords),
+            start_date,
+            end_date,
+            enable_credit_filter,
+            credit_filter_keywords,
+            require_keyword_in_title
+        )        
 # --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
     render_articles_columnwise_with_summary(st.session_state.search_results, st.session_state.show_limit)
