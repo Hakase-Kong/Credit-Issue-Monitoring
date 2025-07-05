@@ -29,7 +29,7 @@ TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
 # --- Huggingface Sentiment API 설정 ---
-HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
+HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
 
 # --- Telegram 클래스 정의 ---
 class Telegram:
