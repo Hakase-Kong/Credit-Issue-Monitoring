@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import re
+import os
 from datetime import datetime
 import telepot
 
@@ -28,8 +29,8 @@ NAVER_CLIENT_SECRET = "lZc2gScgNq"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
-# --- Huggingface Sentiment API 설정 ---
-HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
+# --- Huggingface Sentiment API 설정 (환경변수로 관리) ---
+HUGGINGFACE_TOKEN = os.environ.get("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")
 
 # --- Telegram 클래스 정의 ---
 class Telegram:
@@ -42,6 +43,8 @@ class Telegram:
 
 # --- 감성분석 함수 ---
 def analyze_sentiment(summary_text, lang):
+    if not HUGGINGFACE_TOKEN:
+        return "Hugging Face 토큰이 설정되지 않았습니다."
     if lang == "en":
         model = "siebert/sentiment-roberta-large-english"
     else:
@@ -53,8 +56,6 @@ def analyze_sentiment(summary_text, lang):
         response = requests.post(api_url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
-        # 영어: [{'label': 'POSITIVE', 'score': ...}] 또는 [{'label': 'NEGATIVE', ...}]
-        # 다국어: [{'label': '1 star', ...}, ...]
         if isinstance(result, list) and "label" in result[0]:
             label = result[0]["label"]
             if lang == "en":
@@ -65,7 +66,6 @@ def analyze_sentiment(summary_text, lang):
                 else:
                     return "중립"
             else:
-                # 다국어 모델은 별점(1~5) 반환
                 if label.startswith("1"):
                     return "매우 부정"
                 elif label.startswith("2"):
@@ -82,8 +82,9 @@ def analyze_sentiment(summary_text, lang):
     except Exception as e:
         return f"분석실패: {e}"
 
+# --- 이하 기존 코드 동일 ---
+# (아래는 생략 없이 붙여넣으시면 됩니다)
 
-# --- 키워드 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
@@ -93,7 +94,6 @@ default_credit_issue_patterns = [
     "재무위험", "부정적 전망", "긍정적 전망", "기업회생", "워크아웃", "구조조정", "자본잠식"
 ]
 
-# --- 즐겨찾기 카테고리 ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -114,24 +114,18 @@ favorite_categories = {
     "특수채": ["주택도시보증공사", "기업은행"]
 }
 
-# --- 세션 상태 초기화 ---
 if "favorite_keywords" not in st.session_state:
     st.session_state.favorite_keywords = set()
-
 if "search_results" not in st.session_state:
     st.session_state.search_results = {}
-
 if "show_limit" not in st.session_state:
     st.session_state.show_limit = {}
-
 if "search_triggered" not in st.session_state:
     st.session_state.search_triggered = False
 
-# --- 즐겨찾기 초기 등록 ---
 for category_keywords in favorite_categories.values():
     st.session_state.favorite_keywords.update(category_keywords)
 
-# --- 즐겨찾기 카테고리 선택 ---
 st.markdown("**즐겨찾기 카테고리 선택**")
 cat_col, btn_col = st.columns([5, 1])
 with cat_col:
@@ -142,7 +136,6 @@ with btn_col:
     st.write("")
     category_search_clicked = st.button("🔍 검색", use_container_width=True)
 
-# 필터 함수
 def filter_by_issues(title, desc, selected_keywords, enable_credit_filter, credit_filter_keywords, require_keyword_in_title=False):
     if require_keyword_in_title and selected_keywords:
         if not any(kw.lower() in title.lower() for kw in selected_keywords):
@@ -259,9 +252,7 @@ def summarize_article_from_url(article_url, title):
     except Exception as e:
         return f"요약 오류: {e}", None
 
-# --- 기사 선택 및 요약/전송 UI ---
 def render_articles_with_single_summary_and_telegram(results, show_limit):
-    # 모든 기사들을 하나의 리스트로 모으고, (카테고리, 인덱스)로 식별
     all_articles = []
     article_keys = []
     for keyword, articles in results.items():
@@ -273,14 +264,10 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
         st.info("검색 결과가 없습니다.")
         return
 
-    # 기사 선택 라디오 버튼
     selected_idx = st.radio("요약/감성분석/텔레그램 전송할 기사를 선택하세요.", range(len(all_articles)), format_func=lambda i: all_articles[i], key="article_selector")
-    
-    # 선택된 기사 정보
     selected_keyword, selected_article_idx = article_keys[selected_idx]
     selected_article = st.session_state.search_results[selected_keyword][selected_article_idx]
-    
-    # 기사 내용 미리보기
+
     st.markdown(f"""
     <div style='margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 10px; background-color: #fafafa;'>
         <div style='font-weight: bold; font-size: 15px; margin-bottom: 4px;'>
@@ -294,21 +281,18 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
     </div>
     """, unsafe_allow_html=True)
 
-    # 요약/감성분석 버튼
     if st.button("🔍 선택 기사 요약 및 감성분석"):
         with st.spinner("기사 요약 중..."):
             summary, full_text = summarize_article_from_url(selected_article['link'], selected_article['title'])
             if full_text:
                 st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
                 st.write(summary)
-                # 언어 자동 감지
                 lang = detect_lang_from_title(selected_article['title'])
                 sentiment = analyze_sentiment(summary, lang)
                 st.markdown(f"<div style='font-size:14px; font-weight:bold;'>🧭 감성 분석: <span style='color:#d60000'>{sentiment}</span></div>", unsafe_allow_html=True)
             else:
                 st.warning(summary)
-    
-    # 텔레그램 전송 버튼
+
     if st.button("✈️ 선택 기사 텔레그램 전송"):
         try:
             msg = f"*[{selected_article['title']}]({selected_article['link']})*\n{selected_article['date']} | {selected_article['source']}"
@@ -317,11 +301,9 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
         except Exception as e:
             st.warning(f"텔레그램 전송 오류: {e}")
 
-# --- Streamlit 설정 ---
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
 
-# --- 검색 UI ---
 col1, col2, col3 = st.columns([6, 1, 1])
 with col1:
     keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="", on_change=lambda: st.session_state.__setitem__('search_triggered', True))
@@ -336,14 +318,12 @@ with col3:
         st.session_state.favorite_keywords.update(new_keywords)
         st.success("즐겨찾기에 추가되었습니다.")
 
-# --- 날짜 입력 ---
 date_col1, date_col2 = st.columns([1, 1])
 with date_col1:
     start_date = st.date_input("시작일")
 with date_col2:
     end_date = st.date_input("종료일")
 
-# --- 필터 옵션 ---
 with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
     enable_credit_filter = st.checkbox("신용위험 뉴스만 필터링", value=False)
     credit_filter_keywords = st.multiselect(
@@ -356,7 +336,6 @@ with st.expander("🛡️ 신용위험 필터 옵션", expanded=True):
 with st.expander("🔍 키워드 필터 옵션", expanded=True):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=True)
 
-# --- 즐겨찾기 검색 ---
 fav_col1, fav_col2 = st.columns([5, 1])
 with fav_col1:
     fav_selected = st.multiselect("⭐ 즐겨찾기에서 검색", sorted(st.session_state.favorite_keywords))
@@ -400,6 +379,5 @@ if category_search_clicked and selected_categories:
             require_keyword_in_title
         )
 
-# --- 뉴스 결과 표시 ---
 if st.session_state.search_results:
     render_articles_with_single_summary_and_telegram(st.session_state.search_results, st.session_state.show_limit)
