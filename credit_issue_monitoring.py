@@ -42,26 +42,20 @@ class Telegram:
 
 # --- 감성분석 함수 ---
 def analyze_sentiment(summary_text, lang):
-    english_model = "distilbert-base-uncased-finetuned-sst-2-english"
-    korean_model = "ynsuh/kobert-base-sentiment"
     if lang == "en":
-        model = english_model
-    elif lang == "ko":
-        model = korean_model
+        model = "siebert/sentiment-roberta-large-english"
     else:
-        return "지원하지 않는 언어"
-
+        model = "nlptown/bert-base-multilingual-uncased-sentiment"
     api_url = f"https://api-inference.huggingface.co/models/{model}"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
     payload = {"inputs": summary_text}
-
     try:
         response = requests.post(api_url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
-        # 영어 모델: [{'label': 'POSITIVE', 'score': ...}]
-        # 한국어 모델: [{'label': 'LABEL_2', 'score': ...}]
-        if isinstance(result, list) and len(result) > 0 and "label" in result[0]:
+        # 영어: [{'label': 'POSITIVE', 'score': ...}] 또는 [{'label': 'NEGATIVE', ...}]
+        # 다국어: [{'label': '1 star', ...}, ...]
+        if isinstance(result, list) and "label" in result[0]:
             label = result[0]["label"]
             if lang == "en":
                 if label.upper() == "NEGATIVE":
@@ -70,18 +64,24 @@ def analyze_sentiment(summary_text, lang):
                     return "긍정"
                 else:
                     return "중립"
-            elif lang == "ko":
-                if label == "LABEL_0":
+            else:
+                # 다국어 모델은 별점(1~5) 반환
+                if label.startswith("1"):
+                    return "매우 부정"
+                elif label.startswith("2"):
                     return "부정"
-                elif label == "LABEL_1":
+                elif label.startswith("3"):
                     return "중립"
-                elif label == "LABEL_2":
+                elif label.startswith("4"):
                     return "긍정"
+                elif label.startswith("5"):
+                    return "매우 긍정"
                 else:
-                    return "중립"
+                    return "분석불가"
         return "분석불가"
     except Exception as e:
         return f"분석실패: {e}"
+
 
 # --- 키워드 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
