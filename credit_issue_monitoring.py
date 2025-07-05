@@ -29,7 +29,7 @@ TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
 # --- Huggingface Sentiment API 설정 ---
-HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
+HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
 
 # --- Telegram 클래스 정의 ---
 class Telegram:
@@ -41,27 +41,44 @@ class Telegram:
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
 # --- 감성분석 함수 ---
-def analyze_sentiment(summary_text):
-    """
-    Huggingface KoBERT 감성분석 API를 활용한 예시 (한국어)
-    결과: 'LABEL_0' (부정), 'LABEL_1' (중립), 'LABEL_2' (긍정)
-    """
+def analyze_sentiment(summary_text, lang):
+    english_model = "distilbert-base-uncased-finetuned-sst-2-english"
+    korean_model = "ynsuh/kobert-base-sentiment"
+    if lang == "en":
+        model = english_model
+    elif lang == "ko":
+        model = korean_model
+    else:
+        return "지원하지 않는 언어"
+
+    api_url = f"https://api-inference.huggingface.co/models/{model}"
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+    payload = {"inputs": summary_text}
+
     try:
-        api_url = "https://api-inference.huggingface.co/models/ynsuh/kobert-base-sentiment"
-        headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-        payload = {"inputs": summary_text}
         response = requests.post(api_url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
-        # 결과 예시: [{'label': 'LABEL_2', 'score': 0.999...}]
+        # 영어 모델: [{'label': 'POSITIVE', 'score': ...}]
+        # 한국어 모델: [{'label': 'LABEL_2', 'score': ...}]
         if isinstance(result, list) and len(result) > 0 and "label" in result[0]:
             label = result[0]["label"]
-            if label == "LABEL_0":
-                return "부정"
-            elif label == "LABEL_1":
-                return "중립"
-            elif label == "LABEL_2":
-                return "긍정"
+            if lang == "en":
+                if label.upper() == "NEGATIVE":
+                    return "부정"
+                elif label.upper() == "POSITIVE":
+                    return "긍정"
+                else:
+                    return "중립"
+            elif lang == "ko":
+                if label == "LABEL_0":
+                    return "부정"
+                elif label == "LABEL_1":
+                    return "중립"
+                elif label == "LABEL_2":
+                    return "긍정"
+                else:
+                    return "중립"
         return "분석불가"
     except Exception as e:
         return f"분석실패: {e}"
@@ -284,7 +301,9 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
             if full_text:
                 st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
                 st.write(summary)
-                sentiment = analyze_sentiment(summary)
+                # 언어 자동 감지
+                lang = detect_lang_from_title(selected_article['title'])
+                sentiment = analyze_sentiment(summary, lang)
                 st.markdown(f"<div style='font-size:14px; font-weight:bold;'>🧭 감성 분석: <span style='color:#d60000'>{sentiment}</span></div>", unsafe_allow_html=True)
             else:
                 st.warning(summary)
