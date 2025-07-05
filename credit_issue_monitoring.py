@@ -268,7 +268,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
                 st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
                 st.write(summary)
                 lang = detect_lang_from_title(selected_article['title'])
-                sentiment = analyze_sentiment(summary, lang)
+                sentiment = analyze_sentiment(full_text, lang)
                 st.markdown(f"<div style='font-size:14px; font-weight:bold;'>🧭 감성 분석: <span style='color:#d60000'>{sentiment}</span></div>", unsafe_allow_html=True)
             else:
                 st.warning(summary)
