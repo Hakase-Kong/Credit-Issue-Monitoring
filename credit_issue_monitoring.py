@@ -5,6 +5,28 @@ import os
 from datetime import datetime
 import telepot
 
+# --- Google Cloud Natural Language API ---
+from google.cloud import language_v1
+
+def analyze_sentiment_google(text, lang="ko"):
+    try:
+        client = language_v1.LanguageServiceClient()
+        document = language_v1.Document(
+            content=text,
+            type_=language_v1.Document.Type.PLAIN_TEXT,
+            language=lang
+        )
+        response = client.analyze_sentiment(request={"document": document})
+        score = response.document_sentiment.score
+        if score > 0.25:
+            return "긍정"
+        elif score < -0.25:
+            return "부정"
+        else:
+            return "중립"
+    except Exception as e:
+        return f"분석실패: {e}"
+
 # --- 스타일 개선 ---
 st.markdown("""
     <style>
@@ -29,9 +51,6 @@ NAVER_CLIENT_SECRET = "lZc2gScgNq"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
-# --- Huggingface Sentiment API 설정 (환경변수로 관리) ---
-HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
-
 # --- Telegram 클래스 정의 ---
 class Telegram:
     def __init__(self):
@@ -41,55 +60,9 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
-# --- 감성분석 함수 (한국어/영어 자동 분기) ---
-def analyze_sentiment_ko(text, hf_token):
-    api_url = "https://api-inference.huggingface.co/models/WhitePeak/bert-base-cased-Korean-sentiment"
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {"inputs": text}
-    try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
-        response.raise_for_status()
-        result = response.json()
-        # [{'label': 'LABEL_0', ...}] (부정), [{'label': 'LABEL_1', ...}] (긍정)
-        if isinstance(result, list) and "label" in result[0]:
-            label = result[0]["label"]
-            if label == "LABEL_0":
-                return "부정"
-            elif label == "LABEL_1":
-                return "긍정"
-            else:
-                return "분석불가"
-        return "분석불가"
-    except Exception as e:
-        return f"분석실패: {e}"
-
-def analyze_sentiment_en(text, hf_token):
-    api_url = "https://api-inference.huggingface.co/models/siebert/sentiment-roberta-large-english"
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {"inputs": text}
-    try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
-        response.raise_for_status()
-        result = response.json()
-        if isinstance(result, list) and "label" in result[0]:
-            label = result[0]["label"]
-            if label.upper() == "NEGATIVE":
-                return "부정"
-            elif label.upper() == "POSITIVE":
-                return "긍정"
-            else:
-                return "중립"
-        return "분석불가"
-    except Exception as e:
-        return f"분석실패: {e}"
-
-def analyze_sentiment(summary_text, lang):
-    if not HUGGINGFACE_TOKEN:
-        return "Hugging Face 토큰이 설정되지 않았습니다."
-    if lang == "ko":
-        return analyze_sentiment_ko(summary_text, HUGGINGFACE_TOKEN)
-    else:
-        return analyze_sentiment_en(summary_text, HUGGINGFACE_TOKEN)
+# --- 감성분석 함수 (Google Cloud) ---
+def analyze_sentiment(text, lang):
+    return analyze_sentiment_google(text, lang)
 
 # --- 이하 기존 코드 동일 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
