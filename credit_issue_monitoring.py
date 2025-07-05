@@ -28,6 +28,9 @@ NAVER_CLIENT_SECRET = "lZc2gScgNq"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
+# --- Huggingface Sentiment API 설정 ---
+HUGGINGFACE_TOKEN = "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"   # 여기에 본인의 Huggingface 토큰 입력
+
 # --- Telegram 클래스 정의 ---
 class Telegram:
     def __init__(self):
@@ -36,6 +39,32 @@ class Telegram:
 
     def send_message(self, message):
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
+
+# --- 감성분석 함수 ---
+def analyze_sentiment(summary_text):
+    """
+    Huggingface KoBERT 감성분석 API를 활용한 예시 (한국어)
+    결과: 'LABEL_0' (부정), 'LABEL_1' (중립), 'LABEL_2' (긍정)
+    """
+    try:
+        api_url = "https://api-inference.huggingface.co/models/ynsuh/kobert-base-sentiment"
+        headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+        payload = {"inputs": summary_text}
+        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        response.raise_for_status()
+        result = response.json()
+        # 결과 예시: [{'label': 'LABEL_2', 'score': 0.999...}]
+        if isinstance(result, list) and len(result) > 0 and "label" in result[0]:
+            label = result[0]["label"]
+            if label == "LABEL_0":
+                return "부정"
+            elif label == "LABEL_1":
+                return "중립"
+            elif label == "LABEL_2":
+                return "긍정"
+        return "분석불가"
+    except Exception as e:
+        return f"분석실패: {e}"
 
 # --- 키워드 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
@@ -228,7 +257,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
         return
 
     # 기사 선택 라디오 버튼
-    selected_idx = st.radio("요약/텔레그램 전송할 기사를 선택하세요.", range(len(all_articles)), format_func=lambda i: all_articles[i], key="article_selector")
+    selected_idx = st.radio("요약/감성분석/텔레그램 전송할 기사를 선택하세요.", range(len(all_articles)), format_func=lambda i: all_articles[i], key="article_selector")
     
     # 선택된 기사 정보
     selected_keyword, selected_article_idx = article_keys[selected_idx]
@@ -248,13 +277,15 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
     </div>
     """, unsafe_allow_html=True)
 
-    # 요약 버튼
-    if st.button("🔍 선택 기사 요약"):
+    # 요약/감성분석 버튼
+    if st.button("🔍 선택 기사 요약 및 감성분석"):
         with st.spinner("기사 요약 중..."):
             summary, full_text = summarize_article_from_url(selected_article['link'], selected_article['title'])
             if full_text:
                 st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
                 st.write(summary)
+                sentiment = analyze_sentiment(summary)
+                st.markdown(f"<div style='font-size:14px; font-weight:bold;'>🧭 감성 분석: <span style='color:#d60000'>{sentiment}</span></div>", unsafe_allow_html=True)
             else:
                 st.warning(summary)
     
