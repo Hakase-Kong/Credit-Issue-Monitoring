@@ -41,22 +41,21 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
-# --- 감성분석 함수 ---
-def analyze_sentiment_ko_kobert(text, hf_token):
-    api_url = "https://api-inference.huggingface.co/models/ynsuh/kobert-base-sentiment"
+# --- 감성분석 함수 (한국어/영어 자동 분기) ---
+def analyze_sentiment_ko(text, hf_token):
+    api_url = "https://api-inference.huggingface.co/models/WhitePeak/bert-base-cased-Korean-sentiment"
     headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {"inputs": text}
     try:
         response = requests.post(api_url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
+        # [{'label': 'LABEL_0', ...}] (부정), [{'label': 'LABEL_1', ...}] (긍정)
         if isinstance(result, list) and "label" in result[0]:
             label = result[0]["label"]
             if label == "LABEL_0":
                 return "부정"
             elif label == "LABEL_1":
-                return "중립"
-            elif label == "LABEL_2":
                 return "긍정"
             else:
                 return "분석불가"
@@ -88,7 +87,7 @@ def analyze_sentiment(summary_text, lang):
     if not HUGGINGFACE_TOKEN:
         return "Hugging Face 토큰이 설정되지 않았습니다."
     if lang == "ko":
-        return analyze_sentiment_ko_kobert(summary_text, HUGGINGFACE_TOKEN)
+        return analyze_sentiment_ko(summary_text, HUGGINGFACE_TOKEN)
     else:
         return analyze_sentiment_en(summary_text, HUGGINGFACE_TOKEN)
 
