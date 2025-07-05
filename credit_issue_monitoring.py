@@ -1,33 +1,94 @@
+import nltk
+
+# 'punkt' 다운로드
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+# 'punkt_tab' 다운로드 (환경에 따라 필요)
+try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    nltk.download('punkt_tab')
+
+
 import streamlit as st
 import requests
 import re
 import os
 from datetime import datetime
 import telepot
-
-# --- Google Cloud Natural Language API ---
+from openai import OpenAI
+import newspaper  # newspaper4k
 from google.cloud import language_v1
 
-def analyze_sentiment_google(text, lang="ko"):
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+def detect_lang(text):
+    return "ko" if re.search(r"[가-힣]", text) else "en"
+
+def analyze_sentiment_google(text):
+    lang = detect_lang(text)
     try:
-        client = language_v1.LanguageServiceClient()
+        client_gc = language_v1.LanguageServiceClient()
         document = language_v1.Document(
             content=text,
             type_=language_v1.Document.Type.PLAIN_TEXT,
             language=lang
         )
-        response = client.analyze_sentiment(request={"document": document})
+        response = client_gc.analyze_sentiment(request={"document": document})
         score = response.document_sentiment.score
-        if score > 0.25:
+        if score > 0.05:
             return "긍정"
-        elif score < -0.25:
+        elif score < -0.05:
             return "부정"
         else:
             return "중립"
     except Exception as e:
         return f"분석실패: {e}"
 
-# --- 스타일 개선 ---
+# --- newspaper4k로 기사 본문 추출 ---
+def extract_article_text(url):
+    try:
+        article = newspaper.article(url)
+        article.download()
+        article.parse()
+        return article.text
+    except Exception as e:
+        return f"본문 추출 오류: {e}"
+
+def summarize_with_openai(text):
+    if not OPENAI_API_KEY:
+        return "OpenAI API 키가 설정되지 않았습니다.", None
+    lang = detect_lang(text)
+    if lang == "ko":
+        prompt = (
+            "아래 기사 본문을 3문장 이내로 요약해줘.\n"
+            "단, 기사와 직접적으로 관련 없는 광고, 배너, 추천기사, 서비스 안내, 사이트 공통 문구 등은 모두 요약에서 제외해줘.\n"
+            "기사의 핵심 내용만 요약해줘.\n\n"
+            f"[기사 본문]\n{text}"
+        )
+    else:
+        prompt = (
+            "Summarize the following news article in 3 sentences.\n"
+            "Exclude any content that is not directly related to the article itself, such as advertisements, banners, recommended articles, service notices, or site-wide generic messages.\n"
+            "Focus only on the main content of the article.\n\n"
+            f"[ARTICLE]\n{text}"
+        )
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": prompt}
+        ],
+        max_tokens=256,
+        temperature=0.3
+    )
+    summary = response.choices[0].message.content.strip()
+    return summary, text
+
+# --- 이하 기존 코드 동일 ---
 st.markdown("""
     <style>
         .block-container {padding-top: 2rem; padding-bottom: 2rem;}
@@ -43,15 +104,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- API 키 설정 ---
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
-
-# --- 텔레그램 설정 ---
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
-# --- Telegram 클래스 정의 ---
 class Telegram:
     def __init__(self):
         self.bot = telepot.Bot(TELEGRAM_TOKEN)
@@ -60,11 +117,6 @@ class Telegram:
     def send_message(self, message):
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
-# --- 감성분석 함수 (Google Cloud) ---
-def analyze_sentiment(text, lang):
-    return analyze_sentiment_google(text, lang)
-
-# --- 이하 기존 코드 동일 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
@@ -212,22 +264,10 @@ def detect_lang_from_title(title):
 
 def summarize_article_from_url(article_url, title):
     try:
-        api_url = "https://article-extractor-and-summarizer.p.rapidapi.com/summarize"
-        headers = {
-            "x-rapidapi-key": "3558ef6abfmshba1bd48265c6fc4p101a63jsnb2c1ee3d33c4",
-            "x-rapidapi-host": "article-extractor-and-summarizer.p.rapidapi.com"
-        }
-        lang = detect_lang_from_title(title)
-        params = {
-            "url": article_url,
-            "lang": lang,
-            "engine": "2"
-        }
-        response = requests.get(api_url, headers=headers, params=params)
-        response.raise_for_status()
-        result = response.json()
-        summary = result.get("summary", "요약 결과 없음")
-        full_text = result.get("text", "본문 없음")
+        full_text = extract_article_text(article_url)
+        if full_text.startswith("본문 추출 오류"):
+            return full_text, None
+        summary, _ = summarize_with_openai(full_text)
         return summary, full_text
     except Exception as e:
         return f"요약 오류: {e}", None
@@ -267,8 +307,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit):
             if full_text:
                 st.markdown("<div style='font-size:14px; font-weight:bold;'>🔍 본문 요약:</div>", unsafe_allow_html=True)
                 st.write(summary)
-                lang = detect_lang_from_title(selected_article['title'])
-                sentiment = analyze_sentiment(full_text, lang)
+                sentiment = analyze_sentiment_google(full_text)
                 st.markdown(f"<div style='font-size:14px; font-weight:bold;'>🧭 감성 분석: <span style='color:#d60000'>{sentiment}</span></div>", unsafe_allow_html=True)
             else:
                 st.warning(summary)
