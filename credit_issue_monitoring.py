@@ -42,49 +42,57 @@ class Telegram:
         self.bot.sendMessage(self.chat_id, message, parse_mode="Markdown", disable_web_page_preview=True)
 
 # --- 감성분석 함수 ---
-def analyze_sentiment(summary_text, lang):
-    if not HUGGINGFACE_TOKEN:
-        return "Hugging Face 토큰이 설정되지 않았습니다."
-    if lang == "en":
-        model = "siebert/sentiment-roberta-large-english"
-    else:
-        model = "nlptown/bert-base-multilingual-uncased-sentiment"
-    api_url = f"https://api-inference.huggingface.co/models/{model}"
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-    payload = {"inputs": summary_text}
+def analyze_sentiment_ko_kobert(text, hf_token):
+    api_url = "https://api-inference.huggingface.co/models/ynsuh/kobert-base-sentiment"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+    payload = {"inputs": text}
     try:
         response = requests.post(api_url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
         if isinstance(result, list) and "label" in result[0]:
             label = result[0]["label"]
-            if lang == "en":
-                if label.upper() == "NEGATIVE":
-                    return "부정"
-                elif label.upper() == "POSITIVE":
-                    return "긍정"
-                else:
-                    return "중립"
+            if label == "LABEL_0":
+                return "부정"
+            elif label == "LABEL_1":
+                return "중립"
+            elif label == "LABEL_2":
+                return "긍정"
             else:
-                if label.startswith("1"):
-                    return "매우 부정"
-                elif label.startswith("2"):
-                    return "부정"
-                elif label.startswith("3"):
-                    return "중립"
-                elif label.startswith("4"):
-                    return "긍정"
-                elif label.startswith("5"):
-                    return "매우 긍정"
-                else:
-                    return "분석불가"
+                return "분석불가"
         return "분석불가"
     except Exception as e:
         return f"분석실패: {e}"
 
-# --- 이하 기존 코드 동일 ---
-# (아래는 생략 없이 붙여넣으시면 됩니다)
+def analyze_sentiment_en(text, hf_token):
+    api_url = "https://api-inference.huggingface.co/models/siebert/sentiment-roberta-large-english"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+    payload = {"inputs": text}
+    try:
+        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        response.raise_for_status()
+        result = response.json()
+        if isinstance(result, list) and "label" in result[0]:
+            label = result[0]["label"]
+            if label.upper() == "NEGATIVE":
+                return "부정"
+            elif label.upper() == "POSITIVE":
+                return "긍정"
+            else:
+                return "중립"
+        return "분석불가"
+    except Exception as e:
+        return f"분석실패: {e}"
 
+def analyze_sentiment(summary_text, lang):
+    if not HUGGINGFACE_TOKEN:
+        return "Hugging Face 토큰이 설정되지 않았습니다."
+    if lang == "ko":
+        return analyze_sentiment_ko_kobert(summary_text, HUGGINGFACE_TOKEN)
+    else:
+        return analyze_sentiment_en(summary_text, HUGGINGFACE_TOKEN)
+
+# --- 이하 기존 코드 동일 ---
 credit_keywords = ["신용등급", "신용하향", "신용상향", "등급조정", "부정적", "긍정적", "평가"]
 finance_keywords = ["적자", "흑자", "부채", "차입금", "현금흐름", "영업손실", "순이익", "부도", "파산"]
 all_filter_keywords = sorted(set(credit_keywords + finance_keywords))
