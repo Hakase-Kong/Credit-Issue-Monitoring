@@ -30,7 +30,7 @@ TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
 TELEGRAM_CHAT_ID = "-1002404027768"
 
 # --- Huggingface Sentiment API 설정 (환경변수로 관리) ---
-HUGGINGFACE_TOKEN = os.environ.get("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")
+HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
 
 # --- Telegram 클래스 정의 ---
 class Telegram:
