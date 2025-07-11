@@ -706,13 +706,13 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                  st.session_state.selected_articles,
                  favorite_categories,
                  excel_company_categories
-             )
-             st.download_button(
-                 label="📥 맞춤 엑셀 다운로드",
-                 data=excel_bytes.getvalue(),
-                 file_name="뉴스요약_맞춤형.xlsx",
-                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-             )
+                 )
+            st.download_button(
+                label="📥 맞춤 엑셀 다운로드",
+                data=excel_bytes.getvalue(),
+                file_name="뉴스요약_맞춤형.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 if st.session_state.search_results:
     filtered_results = {}
