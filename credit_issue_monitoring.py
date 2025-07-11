@@ -336,25 +336,39 @@ with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
         st.markdown(f"**{major}**: {', '.join(subs)}")
 
 # --- 산업별 필터 옵션 ---
-with st.expander("🏭 산업별 필터 옵션 (대분류/소분류/기업 테이블)"):
+with st.expander("🏭 산업별 필터 옵션 (대분류/기업/키워드 연동)"):
 
-    st.markdown("""
-    <style>
-    .industry-table th, .industry-table td {padding: 6px 12px; vertical-align: top;}
-    .industry-table {border-collapse: collapse; width: 100%;}
-    .industry-table th {background: #f4f4f4;}
-    .industry-table td, .industry-table th {border: 1px solid #e0e2e6;}
-    </style>
-    """, unsafe_allow_html=True)
+    # 1. 섹터(산업) 멀티셀렉트
+    sector_options = list(industry_filter_categories.keys())
+    selected_sectors = st.multiselect("대분류(섹터) 선택 (복수 선택 가능)", sector_options)
 
-    table_html = "<table class='industry-table'>"
-    table_html += "<tr><th>대분류(산업)</th><th>소분류(키워드)</th><th>기업(Companies)</th></tr>"
-    for major, data in industry_filter_categories.items():
-        keywords = ", ".join(data["keywords"])
-        companies = ", ".join(data["companies"])
-        table_html += f"<tr><td>{major}</td><td>{keywords}</td><td>{companies}</td></tr>"
-    table_html += "</table>"
-    st.markdown(table_html, unsafe_allow_html=True)
+    # 2. 선택된 섹터의 기업명/키워드 집계
+    selected_companies = []
+    selected_keywords = []
+    for sector in selected_sectors:
+        selected_companies.extend(industry_filter_categories[sector]["companies"])
+        selected_keywords.extend(industry_filter_categories[sector]["keywords"])
+    selected_companies = sorted(set(selected_companies))
+    selected_keywords = sorted(set(selected_keywords))
+
+    # 3. 기업명 리스트 표시 (readonly)
+    st.markdown("**기업명(Companies):**")
+    if selected_companies:
+        st.write(", ".join(selected_companies))
+    else:
+        st.write("선택된 섹터가 없습니다.")
+
+    # 4. 키워드 멀티셀렉트 (기본 전체 선택)
+    selected_keywords_user = st.multiselect(
+        "키워드(소분류) 선택 (복수 선택 가능)",
+        options=selected_keywords,
+        default=selected_keywords
+    )
+
+    # 5. 선택 결과 출력(예시)
+    st.write(f"선택된 섹터: {selected_sectors}")
+    st.write(f"선택된 기업: {selected_companies}")
+    st.write(f"선택된 키워드: {selected_keywords_user}")
 
 # --- 키워드 필터 옵션 (하단으로 이동) ---
 with st.expander("🔍 키워드 필터 옵션"):
