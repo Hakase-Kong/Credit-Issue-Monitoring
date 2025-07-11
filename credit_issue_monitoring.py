@@ -59,28 +59,135 @@ if "selected_articles" not in st.session_state:
 
 # --- 산업별 필터 옵션 ---
 industry_filter_categories = {
-    "은행 및 금융지주": {
-        "keywords": [
-            "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
-            "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
-        ],
-        "companies": [
-            "신한금융", "하나금융", "KB금융", "농협금융", "우리금융",
-            "농협은행", "국민은행", "신한은행", "우리은행", "하나은행"
-        ]
-    },
-    "보험사": {
-        "keywords": [
-            "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
-            "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
-            "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
-        ],
-        "companies": [
-            "현대해상", "농협생명", "메리츠화재", "교보생명", "삼성화재", "삼성생명",
-            "신한라이프", "흥국생명", "동양생명", "미래에셋생명"
-        ]
-    },
-    # ... 이하 동일하게 모든 섹터 추가 ...
+    "은행 및 금융지주": [
+        "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
+        "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
+    ],
+    "보험사": [
+        "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
+        "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
+        "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
+    ],
+    "카드사": [
+        "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
+        "건전성", "케이뱅크", "이탈"
+    ],
+    "캐피탈": [
+        "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
+        "조정총자산수익률", "군인공제회"
+    ],
+    "지주사": [
+        "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
+        "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
+    ],
+    "에너지": [
+        "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
+        "터미널", "윤활유"
+    ],
+    "발전": [
+        "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
+        "가동률", "도시가스"
+    ],
+    "자동차": [
+        "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
+    ],
+    "전기전자": [
+        "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
+    ],
+    "철강": [
+        "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
+        "중국 수출 감소", "건설경기", "조선 수요", "파업"
+    ],
+    "비철": [
+        "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
+    ],
+    "소매": [
+        "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
+        "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
+    ],
+    "석유화학": [
+        "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
+        "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
+    ],
+    "건설": [
+        "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
+        "시공능력순위", "미분양", "대손충당금"
+    ],
+    "특수채": [
+        "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
+        "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
+    ]
+}
+
+favorite_categories = {
+    "국/공채": [],
+    "공공기관": [],
+    "보험사": ["현대해상", "농협생명", "메리츠화재", "교보생명", "삼성화재", "삼성생명", "신한라이프", "흥국생명", "동양생명", "미래에셋생명"],
+    "5대금융지주": ["신한금융", "하나금융", "KB금융", "농협금융", "우리금융"],
+    "5대시중은행": ["농협은행", "국민은행", "신한은행", "우리은행", "하나은행"],
+    "카드사": ["KB국민카드", "현대카드", "신한카드", "비씨카드", "삼성카드"],
+    "캐피탈": ["한국캐피탈", "현대캐피탈"],
+    "지주사": ["SK이노베이션", "GS에너지", "SK", "GS"],
+    "에너지": ["SK가스", "GS칼텍스", "S-Oil", "SK에너지", "SK앤무브", "코리아에너지터미널"],
+    "발전": ["GS파워", "GSEPS", "삼천리"],
+    "자동차": ["LG에너지솔루션", "한온시스템", "포스코퓨처엠", "한국타이어"],
+    "전기/전자": ["SK하이닉스", "LG이노텍", "LG전자", "LS일렉트릭"],
+    "소비재": ["이마트", "LF", "CJ제일제당", "SK네트웍스", "CJ대한통운"],
+    "비철/철강": ["포스코", "현대제철", "고려아연"],
+    "석유화학": ["LG화학", "SK지오센트릭"],
+    "건설": ["포스코이앤씨"],
+    "특수채": ["주택도시보증공사", "기업은행"]
+}
+
+excel_company_categories = {
+    "국/공채": [],
+    "공공기관": [],
+    "보험사": [
+        "현대해상화재보험(후)", "농협생명보험(후)", "메리츠화재해상보험(후)", "교보생명(후)",
+        "삼성화재", "삼성생명", "신한라이프(후)", "흥국생명보험(후)", "동양생명보험(후)", "미래에셋생명(후)"
+    ],
+    "5대금융지주": [
+        "신한지주", "하나금융지주", "KB금융", "농협금융지주", "우리금융지주"
+    ],
+    "5대시중은행": [
+        "농협은행", "국민은행", "신한은행", "우리은행", "하나은행"
+    ],
+    "카드사": [
+        "케이비카드", "현대카드", "신한카드", "비씨카드", "삼성카드"
+    ],
+    "캐피탈": [
+        "한국캐피탈", "현대캐피탈"
+    ],
+    "지주사": [
+        "SK이노베이션", "지에스에너지", "SK", "GS"
+    ],
+    "에너지": [
+        "SK가스", "GS칼텍스", "S-Oil", "SK에너지", "에스케이엔무브", "코리아에너지터미널"
+    ],
+    "발전": [
+        "GS파워", "지에스이피에스", "삼천리"
+    ],
+    "자동차": [
+        "LG에너지솔루션", "한온시스템", "포스코퓨처엠", "한국타이어앤테크놀로지"
+    ],
+    "전기/전자": [
+        "SK하이닉스", "LG이노텍", "LG전자", "엘에스일렉트릭"
+    ],
+    "소비재": [
+        "이마트", "LF", "CJ제일제당", "SK네트웍스", "CJ대한통운"
+    ],
+    "비철/철강": [
+        "포스코", "현대제철", "고려아연"
+    ],
+    "석유화학": [
+        "LG화학", "SK지오센트릭"
+    ],
+    "건설": [
+        "포스코이앤씨"
+    ],
+    "특수채": [
+        "주택도시보증공사", "기업은행"
+    ]
 }
 
 # --- 공통 필터 옵션(대분류/소분류 없이 모두 적용) ---
@@ -435,12 +542,177 @@ def safe_title(val):
     return str(val)
 
 def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorite_categories, excel_company_categories):
-    # (생략 없이 기존 코드 전체를 넣으세요)
+    company_order = []
+    for cat in [
+        "국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈",
+        "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"
+    ]:
+        company_order.extend(favorite_categories.get(cat, []))
+
+    excel_company_order = []
+    for cat in [
+        "국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈",
+        "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"
+    ]:
+        excel_company_order.extend(excel_company_categories.get(cat, []))
+
+    df_articles = pd.DataFrame(summary_data)
+    result_rows = []
+    for idx, company in enumerate(company_order):
+        excel_company_name = excel_company_order[idx] if idx < len(excel_company_order) else ""
+
+        comp_articles = df_articles[df_articles["키워드"] == company]
+        pos_news = comp_articles[comp_articles["감성"] == "긍정"].sort_values(by="날짜", ascending=False)
+        neg_news = comp_articles[comp_articles["감성"] == "부정"].sort_values(by="날짜", ascending=False)
+
+        if not pos_news.empty:
+            pos_date = pos_news.iloc[0]["날짜"]
+            pos_title = pos_news.iloc[0]["기사제목"]
+            pos_link = pos_news.iloc[0]["링크"]
+            pos_display = f'({pos_date}) {pos_title}'
+            pos_hyperlink = f'=HYPERLINK("{pos_link}", "{pos_display}")'
+        else:
+            pos_hyperlink = ""
+
+        if not neg_news.empty:
+            neg_date = neg_news.iloc[0]["날짜"]
+            neg_title = neg_news.iloc[0]["기사제목"]
+            neg_link = neg_news.iloc[0]["링크"]
+            neg_display = f'({neg_date}) {neg_title}'
+            neg_hyperlink = f'=HYPERLINK("{neg_link}", "{neg_display}")'
+        else:
+            neg_hyperlink = ""
+
+        result_rows.append({
+            "기업명": company,
+            "표기명": excel_company_name,
+            "긍정 뉴스": pos_hyperlink,
+            "부정 뉴스": neg_hyperlink
+        })
+
+    df_result = pd.DataFrame(result_rows)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_result.to_excel(writer, index=False, sheet_name='뉴스요약')
+    output.seek(0)
     return output
 
 def render_articles_with_single_summary_and_telegram(results, show_limit, show_sentiment_badge=True, enable_summary=True):
-    # (생략 없이 기존 코드 전체를 넣으세요)
-    pass
+    SENTIMENT_CLASS = {
+        "긍정": "sentiment-positive",
+        "부정": "sentiment-negative"
+    }
+
+    if "article_checked" not in st.session_state:
+        st.session_state.article_checked = {}
+
+    col_list, col_summary = st.columns([1, 1])
+
+    with col_list:
+        st.markdown("### 기사 요약 결과")
+        for keyword, articles in results.items():
+            articles = remove_duplicate_articles(articles)
+            with st.container(border=True):
+                st.markdown(f"**[{keyword}]**")
+                limit = st.session_state.show_limit.get(keyword, 5)
+                for idx, article in enumerate(articles[:limit]):
+                    unique_id = re.sub(r'\W+', '', article['link'])[-16:]
+                    key = f"{keyword}_{idx}_{unique_id}"
+                    cache_key = f"summary_{key}"
+                    if show_sentiment_badge:
+                        if cache_key not in st.session_state:
+                            one_line, summary, sentiment, full_text = summarize_article_from_url(
+                                article['link'], article['title'], do_summary=enable_summary
+                            )
+                            st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
+                        else:
+                            one_line, summary, sentiment, full_text = st.session_state[cache_key]
+                        sentiment_label = sentiment if sentiment else "분석중"
+                        sentiment_class = SENTIMENT_CLASS.get(sentiment_label, "sentiment-negative")
+                        md_line = (
+                            f"[{article['title']}]({article['link']}) "
+                            f"<span class='sentiment-badge {sentiment_class}'>({sentiment_label})</span> "
+                            f"{article['date']} | {article['source']}"
+                        )
+                    else:
+                        md_line = (
+                            f"[{article['title']}]({article['link']}) "
+                            f"{article['date']} | {article['source']}"
+                        )
+                    cols = st.columns([0.04, 0.96])
+                    with cols[0]:
+                        checked = st.checkbox("", value=st.session_state.article_checked.get(key, False), key=f"news_{key}")
+                    with cols[1]:
+                        st.markdown(md_line, unsafe_allow_html=True)
+                    st.session_state.article_checked[key] = checked
+
+                if limit < len(articles):
+                    if st.button("더보기", key=f"more_{keyword}"):
+                        st.session_state.show_limit[keyword] += 10
+                        st.rerun()
+
+    with col_summary:
+        st.markdown("### 선택된 기사 요약/감성분석")
+        with st.container(border=True):
+            selected_articles = []
+            def safe_title_for_append(val):
+                if val is None or str(val).strip() == "" or str(val).lower() == "nan" or str(val) == "0":
+                    return "제목없음"
+                return str(val)
+            for keyword, articles in results.items():
+                articles = remove_duplicate_articles(articles)
+                limit = st.session_state.show_limit.get(keyword, 5)
+                for idx, article in enumerate(articles[:limit]):
+                    unique_id = re.sub(r'\W+', '', article['link'])[-16:]
+                    key = f"{keyword}_{idx}_{unique_id}"
+                    cache_key = f"summary_{key}"
+                    if st.session_state.article_checked.get(key, False):
+                        if cache_key in st.session_state:
+                            one_line, summary, sentiment, full_text = st.session_state[cache_key]
+                        else:
+                            one_line, summary, sentiment, full_text = summarize_article_from_url(
+                                article['link'], article['title'], do_summary=enable_summary
+                            )
+                            st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
+                        selected_articles.append({
+                            "키워드": keyword,
+                            "기사제목": safe_title_for_append(article.get('title')),
+                            "요약": one_line,
+                            "요약본": summary,
+                            "감성": sentiment,
+                            "링크": article['link'],
+                            "날짜": article['date'],
+                            "출처": article['source']
+                        })
+                        if show_sentiment_badge:
+                            st.markdown(
+                                f"#### [{article['title']}]({article['link']}) "
+                                f"<span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
+                        st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
+                        if enable_summary:
+                            st.markdown(f"- **한 줄 요약:** {one_line}")
+                        st.markdown(f"- **감성분석:** `{sentiment}`")
+                        st.markdown("---")
+
+            st.session_state.selected_articles = selected_articles
+            st.write(f"선택된 기사 개수: {len(selected_articles)}")
+
+            # 엑셀 다운로드
+            excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
+                 st.session_state.selected_articles,
+                 favorite_categories,
+                 excel_company_categories
+             )
+             st.download_button(
+                 label="📥 맞춤 엑셀 다운로드",
+                 data=excel_bytes.getvalue(),
+                 file_name="뉴스요약_맞춤형.xlsx",
+                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+             )
 
 if st.session_state.search_results:
     filtered_results = {}
