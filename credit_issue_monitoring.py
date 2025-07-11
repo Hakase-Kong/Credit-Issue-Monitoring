@@ -259,7 +259,7 @@ with st.expander("🏭 산업별 필터 옵션"):
     selected_keywords = sorted(set(
         kw
         for sector in selected_sectors
-        for kw in industry_filter_categories[sector]["keywords"]
+        for kw in industry_filter_categories[sector]
     )) if selected_sectors else []
 
     # 섹터 선택이 바뀌면 바로 검색 트리거
