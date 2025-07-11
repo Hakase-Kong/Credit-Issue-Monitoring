@@ -400,7 +400,6 @@ if keywords_input:
 
 # --- 검색 트리거: 키워드 입력 or 산업별 필터 선택 시 ---
 if search_clicked or st.session_state.get("search_triggered"):
-    # 키워드 입력이 있으면 해당 키워드로, 없으면 산업별 필터 키워드로 검색
     if keywords_input:
         keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     else:
@@ -415,15 +414,11 @@ if search_clicked or st.session_state.get("search_triggered"):
 # --- 기사 필터링 함수 ---
 def article_passes_all_filters(article):
     filters = []
-    # 공통 필터 항상 적용
     filters.append(ALL_COMMON_FILTER_KEYWORDS)
-    # 산업별 필터 사용 시 적용
     if st.session_state.get("use_industry_filter", False):
         filters.append(st.session_state.get("industry_sub", []))
-    # 제외 키워드
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
         return False
-    # 키워드 정확 포함 옵션
     if st.session_state.get("require_exact_keyword_in_title_or_content", False):
         all_keywords = []
         if keywords_input:
@@ -440,11 +435,11 @@ def safe_title(val):
     return str(val)
 
 def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorite_categories, excel_company_categories):
-    # ... (생략, 기존 코드 동일) ...
+    # (생략 없이 기존 코드 전체를 넣으세요)
     return output
 
 def render_articles_with_single_summary_and_telegram(results, show_limit, show_sentiment_badge=True, enable_summary=True):
-    # ... (생략, 기존 코드 동일) ...
+    # (생략 없이 기존 코드 전체를 넣으세요)
     pass
 
 if st.session_state.search_results:
