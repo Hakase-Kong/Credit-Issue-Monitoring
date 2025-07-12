@@ -1,4 +1,12 @@
 import os
+import nltk
+
+os.environ['NLTK_DATA'] = '/tmp/nltk_data'
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
 import streamlit as st
 import pandas as pd
 from io import BytesIO
