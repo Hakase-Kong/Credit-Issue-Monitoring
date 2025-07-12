@@ -8,3 +8,4 @@ newspaper4k
 telepot
 lxml_html_clean
 xlsxwriter
+konlpy
