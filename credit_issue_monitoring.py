@@ -1,20 +1,14 @@
-import nltk
-
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-
+import os
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 import requests
 import re
-import os
 from datetime import datetime
 import telepot
 from openai import OpenAI
 import newspaper  # newspaper3k
+import difflib
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -57,68 +51,7 @@ if "search_triggered" not in st.session_state:
 if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
 
-# --- 산업별 필터 옵션 ---
-industry_filter_categories = {
-    "은행 및 금융지주": [
-        "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
-        "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
-    ],
-    "보험사": [
-        "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
-        "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
-        "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
-    ],
-    "카드사": [
-        "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
-        "건전성", "케이뱅크", "이탈"
-    ],
-    "캐피탈": [
-        "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
-        "조정총자산수익률", "군인공제회"
-    ],
-    "지주사": [
-        "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
-        "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
-    ],
-    "에너지": [
-        "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
-        "터미널", "윤활유"
-    ],
-    "발전": [
-        "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
-        "가동률", "도시가스"
-    ],
-    "자동차": [
-        "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
-    ],
-    "전기전자": [
-        "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
-    ],
-    "철강": [
-        "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
-        "중국 수출 감소", "건설경기", "조선 수요", "파업"
-    ],
-    "비철": [
-        "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
-    ],
-    "소매": [
-        "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
-        "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
-    ],
-    "석유화학": [
-        "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
-        "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
-    ],
-    "건설": [
-        "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
-        "시공능력순위", "미분양", "대손충당금"
-    ],
-    "특수채": [
-        "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
-        "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
-    ]
-}
-
+# --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -218,6 +151,68 @@ ALL_COMMON_FILTER_KEYWORDS = []
 for keywords in common_filter_categories.values():
     ALL_COMMON_FILTER_KEYWORDS.extend(keywords)
 
+# --- 산업별 필터 옵션 ---
+industry_filter_categories = {
+    "은행 및 금융지주": [
+        "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
+        "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
+    ],
+    "보험사": [
+        "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
+        "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
+        "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
+    ],
+    "카드사": [
+        "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
+        "건전성", "케이뱅크", "이탈"
+    ],
+    "캐피탈": [
+        "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
+        "조정총자산수익률", "군인공제회"
+    ],
+    "지주사": [
+        "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
+        "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
+    ],
+    "에너지": [
+        "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
+        "터미널", "윤활유"
+    ],
+    "발전": [
+        "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
+        "가동률", "도시가스"
+    ],
+    "자동차": [
+        "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
+    ],
+    "전기전자": [
+        "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
+    ],
+    "철강": [
+        "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
+        "중국 수출 감소", "건설경기", "조선 수요", "파업"
+    ],
+    "비철": [
+        "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
+    ],
+    "소매": [
+        "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
+        "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
+    ],
+    "석유화학": [
+        "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
+        "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
+    ],
+    "건설": [
+        "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
+        "시공능력순위", "미분양", "대손충당금"
+    ],
+    "특수채": [
+        "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
+        "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
+    ]
+}
+
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
@@ -235,6 +230,16 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
+# 2. 즐겨찾기 카테고리 선택/검색 버튼 (한 줄, 버튼 오른쪽)
+st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
+col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
+with col_cat_input:
+    selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
+with col_cat_btn:
+    category_search_clicked = st.button("🔍 검색", key="cat_search_btn", help="카테고리로 검색", use_container_width=True)
+for cat in selected_categories:
+    st.session_state.favorite_keywords.update(favorite_categories[cat])
+
 # 날짜 입력
 date_col1, date_col2 = st.columns([1, 1])
 with date_col1:
@@ -247,30 +252,27 @@ with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
     for major, subs in common_filter_categories.items():
         st.markdown(f"**{major}**: {', '.join(subs)}")
 
-# --- 산업별 필터 옵션 (메인 검색 트리거) ---
+# --- 산업별 필터 옵션 ---
 with st.expander("🏭 산업별 필터 옵션"):
-    sector_options = list(industry_filter_categories.keys())
-    selected_sectors = st.multiselect(
-        "대분류(섹터) 선택 (복수 선택 가능, 엔터로 검색)",
-        sector_options,
-        key="industry_majors"
-    )
-
-    selected_keywords = sorted(set(
-        kw
-        for sector in selected_sectors
-        for kw in industry_filter_categories[sector]
-    )) if selected_sectors else []
-
-    # 섹터 선택이 바뀌면 바로 검색 트리거
-    if selected_sectors:
-        st.session_state["use_industry_filter"] = True
-        st.session_state["industry_sub"] = selected_keywords
-        st.session_state["search_triggered"] = True
-    else:
-        st.session_state["use_industry_filter"] = False
-        st.session_state["industry_sub"] = []
-        st.session_state["search_triggered"] = False
+    use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
+    col_major, col_sub = st.columns([1, 1])
+    with col_major:
+        selected_majors = st.multiselect(
+            "대분류(산업)",
+            list(industry_filter_categories.keys()),
+            key="industry_majors"
+        )
+    with col_sub:
+        sub_options = []
+        for major in selected_majors:
+            sub_options.extend(industry_filter_categories.get(major, []))
+        sub_options = sorted(set(sub_options))
+        selected_sub = st.multiselect(
+            "소분류(필터 키워드)",
+            sub_options,
+            default=sub_options,
+            key="industry_sub"
+        )
 
 # --- 키워드 필터 옵션 (하단으로 이동) ---
 with st.expander("🔍 키워드 필터 옵션"):
@@ -280,7 +282,7 @@ with st.expander("🔍 키워드 필터 옵션"):
 # --- 본문 추출 함수 ---
 def extract_article_text(url):
     try:
-        article = newspaper.Article(url)
+        article = newspaper.article(url)
         article.download()
         article.parse()
         return article.text
@@ -440,14 +442,20 @@ def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
 # --- 중복 기사 제거 함수 ---
-def remove_duplicate_articles(articles):
-    seen = set()
+def remove_duplicate_articles_by_title(articles, threshold=0.75):
     unique_articles = []
+    titles = []
     for article in articles:
-        link = article.get("link")
-        if link and link not in seen:
+        title = article.get("title", "")
+        is_duplicate = False
+        for existing_title in titles:
+            similarity = difflib.SequenceMatcher(None, title, existing_title).ratio()
+            if similarity >= threshold:
+                is_duplicate = True
+                break
+        if not is_duplicate:
             unique_articles.append(article)
-            seen.add(link)
+            titles.append(title)
     return unique_articles
 
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
@@ -456,7 +464,7 @@ def process_keywords(keyword_list, start_date, end_date, require_keyword_in_titl
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        articles = remove_duplicate_articles(articles)
+        articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
         st.session_state.search_results[k] = articles
         if k not in st.session_state.show_limit:
             st.session_state.show_limit[k] = 5
@@ -505,33 +513,46 @@ if keywords_input:
     else:
         search_clicked = True
 
-# --- 검색 트리거: 키워드 입력 or 산업별 필터 선택 시 ---
 if search_clicked or st.session_state.get("search_triggered"):
-    if keywords_input:
-        keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
-    else:
-        keyword_list = st.session_state.get("industry_sub", [])
+    keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
         st.warning("키워드는 최대 10개까지 입력 가능합니다.")
-    elif keyword_list:
+    else:
         with st.spinner("뉴스 검색 중..."):
             process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
+if category_search_clicked and selected_categories:
+    with st.spinner("뉴스 검색 중..."):
+        keywords = set()
+        for cat in selected_categories:
+            keywords.update(favorite_categories[cat])
+        process_keywords(
+            sorted(keywords),
+            start_date,
+            end_date,
+            require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
+        )
+
 # --- 기사 필터링 함수 ---
 def article_passes_all_filters(article):
     filters = []
+    # 공통 필터 항상 적용
     filters.append(ALL_COMMON_FILTER_KEYWORDS)
+    # 산업별 필터 사용 시 적용
     if st.session_state.get("use_industry_filter", False):
         filters.append(st.session_state.get("industry_sub", []))
+    # 제외 키워드
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
         return False
+    # 키워드 정확 포함 옵션
     if st.session_state.get("require_exact_keyword_in_title_or_content", False):
         all_keywords = []
         if keywords_input:
             all_keywords.extend([k.strip() for k in keywords_input.split(",") if k.strip()])
-        if st.session_state.get("industry_sub"):
-            all_keywords.extend(st.session_state["industry_sub"])
+        if selected_categories:
+            for cat in selected_categories:
+                all_keywords.extend(favorite_categories[cat])
         if not article_contains_exact_keyword(article, all_keywords):
             return False
     return or_keyword_filter(article, *filters)
@@ -611,7 +632,9 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     with col_list:
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
-            articles = remove_duplicate_articles(articles)
+            # 렌더링 직전 중복 기사 제거
+            articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
                 limit = st.session_state.show_limit.get(keyword, 5)
@@ -660,7 +683,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     return "제목없음"
                 return str(val)
             for keyword, articles in results.items():
-                articles = remove_duplicate_articles(articles)
+                articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
                 limit = st.session_state.show_limit.get(keyword, 5)
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
@@ -701,17 +724,21 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
             st.session_state.selected_articles = selected_articles
             st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
-            # 엑셀 다운로드
-            excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
-                 st.session_state.selected_articles,
-                 favorite_categories,
-                 excel_company_categories
-                 )
-            st.download_button(
-                label="📥 맞춤 엑셀 다운로드",
-                data=excel_bytes.getvalue(),
-                file_name="뉴스요약_맞춤형.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            excel_company_order = []
+            for cat in ["국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈", "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"]:
+                excel_company_order.extend(excel_company_categories.get(cat, []))
+
+            if st.session_state.selected_articles:
+                excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
+                    st.session_state.selected_articles,
+                    favorite_categories,
+                    excel_company_categories
+                )
+                st.download_button(
+                    label="📥 맞춤 엑셀 다운로드",
+                    data=excel_bytes.getvalue(),
+                    file_name="뉴스요약_맞춤형.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
 if st.session_state.search_results:
