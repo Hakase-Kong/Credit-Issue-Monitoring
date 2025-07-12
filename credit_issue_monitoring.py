@@ -9,6 +9,7 @@ import telepot
 from openai import OpenAI
 import newspaper  # newspaper3k
 import difflib
+import nltk
 
 # Render 환경에서 NLTK 데이터 저장 경로 지정 (선택)
 os.environ['NLTK_DATA'] = '/tmp/nltk_data'
