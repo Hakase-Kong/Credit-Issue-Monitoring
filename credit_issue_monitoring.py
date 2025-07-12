@@ -10,6 +10,15 @@ from openai import OpenAI
 import newspaper  # newspaper3k
 import difflib
 
+# Render 환경에서 NLTK 데이터 저장 경로 지정 (선택)
+os.environ['NLTK_DATA'] = '/tmp/nltk_data'
+
+# punkt 데이터 자동 다운로드
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
 # --- CSS 스타일 ---
 st.markdown("""
 <style>
