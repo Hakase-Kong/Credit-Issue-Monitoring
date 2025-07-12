@@ -9,16 +9,6 @@ import telepot
 from openai import OpenAI
 import newspaper  # newspaper3k
 import difflib
-import nltk
-
-# Render 환경에서 NLTK 데이터 저장 경로 지정 (선택)
-os.environ['NLTK_DATA'] = '/tmp/nltk_data'
-
-# punkt 데이터 자동 다운로드
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -330,7 +320,7 @@ with st.expander("🔍 키워드 필터 옵션"):
 @st.cache_data(show_spinner=False)
 def extract_article_text_cached(url):
     try:
-        article = newspaper.article(url)
+        article = newspaper.Article(url)
         article.download()
         article.parse()
         return article.text
