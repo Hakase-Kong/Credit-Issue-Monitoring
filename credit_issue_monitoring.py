@@ -10,6 +10,9 @@ from openai import OpenAI
 import newspaper  # newspaper3k
 import difflib
 
+# --- konlpy 추가 ---
+from konlpy.tag import Okt
+
 # --- CSS 스타일 ---
 st.markdown("""
 <style>
@@ -441,21 +444,50 @@ def fetch_gnews_news(query, start_date=None, end_date=None, limit=100, require_k
 def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
-# --- 중복 기사 제거 함수 ---
-def remove_duplicate_articles_by_title(articles, threshold=0.75):
+# --- 핵심키워드 추출 및 중복 제거 함수 추가 ---
+okt = Okt()
+KOREAN_STOPWORDS = {'의', '이', '가', '및', '에서', '에', '로', '과', '와', '는', '을', '를', '도', '으로', '…', '“', '”', '‘', '’'}
+
+def extract_keywords(text):
+    if re.search(r"[가-힣]", text):
+        nouns = okt.nouns(text)
+        keywords = [n for n in nouns if n not in KOREAN_STOPWORDS and len(n) > 1]
+        return set(keywords)
+    else:
+        words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+        return set(words)
+
+def jaccard_similarity(set1, set2):
+    if not set1 or not set2:
+        return 0.0
+    return len(set1 & set2) / len(set1 | set2)
+
+def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6):
     unique_articles = []
-    titles = []
+    seen_titles = []
+    seen_keywords = []
     for article in articles:
         title = article.get("title", "")
+        full_text = article.get("title", "")
+        if 'full_text' in article and article['full_text']:
+            full_text += " " + article['full_text']
+        keywords = extract_keywords(full_text)
         is_duplicate = False
-        for existing_title in titles:
-            similarity = difflib.SequenceMatcher(None, title, existing_title).ratio()
-            if similarity >= threshold:
+        for existing_title in seen_titles:
+            sim = difflib.SequenceMatcher(None, title, existing_title).ratio()
+            if sim >= title_threshold:
                 is_duplicate = True
                 break
         if not is_duplicate:
+            for existing_keywords in seen_keywords:
+                ksim = jaccard_similarity(keywords, existing_keywords)
+                if ksim >= keyword_threshold:
+                    is_duplicate = True
+                    break
+        if not is_duplicate:
             unique_articles.append(article)
-            titles.append(title)
+            seen_titles.append(title)
+            seen_keywords.append(keywords)
     return unique_articles
 
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
@@ -464,7 +496,8 @@ def process_keywords(keyword_list, start_date, end_date, require_keyword_in_titl
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+        # 기존 remove_duplicate_articles_by_title 대신 핵심키워드 기반 중복 제거 사용
+        articles = remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6)
         st.session_state.search_results[k] = articles
         if k not in st.session_state.show_limit:
             st.session_state.show_limit[k] = 5
@@ -632,8 +665,8 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     with col_list:
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
-            # 렌더링 직전 중복 기사 제거
-            articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+            # 렌더링 직전 중복 기사 제거 (추가 안전장치)
+            articles = remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6)
 
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
@@ -672,7 +705,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                 if limit < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         st.session_state.show_limit[keyword] += 10
-                        st.rerun()
+                        st.experimental_rerun()
 
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
@@ -683,7 +716,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     return "제목없음"
                 return str(val)
             for keyword, articles in results.items():
-                articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+                articles = remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6)
                 limit = st.session_state.show_limit.get(keyword, 5)
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
