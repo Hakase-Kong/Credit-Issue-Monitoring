@@ -651,7 +651,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     with col_list:
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
-            # 이미 중복 제거된 상태이므로, 추가 중복 제거 생략
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
                 limit = st.session_state.show_limit.get(keyword, 5)
@@ -661,14 +660,16 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     # 기사 리스트에서는 본문 추출/요약을 하지 않음
                     sentiment_label = ""
                     sentiment_class = ""
+                    sentiment_html = ""
                     if show_sentiment_badge:
                         if f"summary_{key}" in st.session_state:
                             _, _, sentiment, _ = st.session_state[f"summary_{key}"]
                             sentiment_label = sentiment if sentiment else "분석중"
                             sentiment_class = SENTIMENT_CLASS.get(sentiment_label, "sentiment-negative")
+                            sentiment_html = f"<span class='sentiment-badge {sentiment_class}'>({sentiment_label})</span>"
                     md_line = (
                         f"[{article['title']}]({article['link']}) "
-                        f"{f'<span class=\"sentiment-badge {sentiment_class}\">({sentiment_label})</span>' if sentiment_label else ''} "
+                        f"{sentiment_html} "
                         f"{article['date']} | {article['source']}"
                     )
                     cols = st.columns([0.04, 0.96])
@@ -748,6 +749,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     file_name="뉴스요약_맞춤형.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
 if st.session_state.search_results:
     filtered_results = {}
