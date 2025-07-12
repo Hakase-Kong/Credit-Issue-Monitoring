@@ -10,9 +10,6 @@ from openai import OpenAI
 import newspaper  # newspaper3k
 import difflib
 
-# --- konlpy 추가 ---
-from konlpy.tag import Okt
-
 # --- CSS 스타일 ---
 st.markdown("""
 <style>
@@ -215,6 +212,59 @@ industry_filter_categories = {
         "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
     ]
 }
+
+# --- Pure Python 핵심키워드 추출 함수 ---
+KOREAN_STOPWORDS = {
+    '의', '이', '가', '은', '는', '을', '를', '에', '에서', '으로', '와', '과', '도', '로', '및', '한', '하다', '되다',
+    '…', '“', '”', '‘', '’', '등', '및', '그', '저', '더', '또', '것', '수', '등', '및', '로', '에서', '까지', '부터'
+}
+ENGLISH_STOPWORDS = {
+    "the", "and", "is", "in", "to", "of", "a", "on", "for", "with", "as", "by", "at", "an", "be", "from", "it", "that",
+    "this", "are", "was", "but", "or", "not", "has", "have", "had", "will", "would", "can", "could", "should"
+}
+
+def extract_keywords(text):
+    if re.search(r"[가-힣]", text):
+        words = re.findall(r"[가-힣]{2,}", text)
+        keywords = [w for w in words if w not in KOREAN_STOPWORDS]
+        return set(keywords)
+    else:
+        words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+        keywords = [w for w in words if w not in ENGLISH_STOPWORDS]
+        return set(keywords)
+
+def jaccard_similarity(set1, set2):
+    if not set1 or not set2:
+        return 0.0
+    return len(set1 & set2) / len(set1 | set2)
+
+def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6):
+    unique_articles = []
+    seen_titles = []
+    seen_keywords = []
+    for article in articles:
+        title = article.get("title", "")
+        full_text = article.get("title", "")
+        if 'full_text' in article and article['full_text']:
+            full_text += " " + article['full_text']
+        keywords = extract_keywords(full_text)
+        is_duplicate = False
+        for existing_title in seen_titles:
+            sim = difflib.SequenceMatcher(None, title, existing_title).ratio()
+            if sim >= title_threshold:
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            for existing_keywords in seen_keywords:
+                ksim = jaccard_similarity(keywords, existing_keywords)
+                if ksim >= keyword_threshold:
+                    is_duplicate = True
+                    break
+        if not is_duplicate:
+            unique_articles.append(article)
+            seen_titles.append(title)
+            seen_keywords.append(keywords)
+    return unique_articles
 
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
@@ -444,59 +494,12 @@ def fetch_gnews_news(query, start_date=None, end_date=None, limit=100, require_k
 def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
-# --- 핵심키워드 추출 및 중복 제거 함수 추가 ---
-okt = Okt()
-KOREAN_STOPWORDS = {'의', '이', '가', '및', '에서', '에', '로', '과', '와', '는', '을', '를', '도', '으로', '…', '“', '”', '‘', '’'}
-
-def extract_keywords(text):
-    if re.search(r"[가-힣]", text):
-        nouns = okt.nouns(text)
-        keywords = [n for n in nouns if n not in KOREAN_STOPWORDS and len(n) > 1]
-        return set(keywords)
-    else:
-        words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
-        return set(words)
-
-def jaccard_similarity(set1, set2):
-    if not set1 or not set2:
-        return 0.0
-    return len(set1 & set2) / len(set1 | set2)
-
-def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6):
-    unique_articles = []
-    seen_titles = []
-    seen_keywords = []
-    for article in articles:
-        title = article.get("title", "")
-        full_text = article.get("title", "")
-        if 'full_text' in article and article['full_text']:
-            full_text += " " + article['full_text']
-        keywords = extract_keywords(full_text)
-        is_duplicate = False
-        for existing_title in seen_titles:
-            sim = difflib.SequenceMatcher(None, title, existing_title).ratio()
-            if sim >= title_threshold:
-                is_duplicate = True
-                break
-        if not is_duplicate:
-            for existing_keywords in seen_keywords:
-                ksim = jaccard_similarity(keywords, existing_keywords)
-                if ksim >= keyword_threshold:
-                    is_duplicate = True
-                    break
-        if not is_duplicate:
-            unique_articles.append(article)
-            seen_titles.append(title)
-            seen_keywords.append(keywords)
-    return unique_articles
-
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
     for k in keyword_list:
         if is_english(k):
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        # 기존 remove_duplicate_articles_by_title 대신 핵심키워드 기반 중복 제거 사용
         articles = remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6)
         st.session_state.search_results[k] = articles
         if k not in st.session_state.show_limit:
@@ -665,7 +668,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     with col_list:
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
-            # 렌더링 직전 중복 기사 제거 (추가 안전장치)
             articles = remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6)
 
             with st.container(border=True):
