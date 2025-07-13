@@ -53,7 +53,7 @@ if "selected_articles" not in st.session_state:
 if "filtered_results" not in st.session_state:
     st.session_state.filtered_results = {}
 
-# 최초 실행 시에만 기본값 세팅
+# 1. 최초 실행 시에만 session_state 값 세팅 (이후에는 절대 직접 할당 금지)
 if "end_date" not in st.session_state:
     st.session_state["end_date"] = date.today()
 if "start_date" not in st.session_state:
@@ -290,7 +290,7 @@ def on_end_date_change():
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
     st.session_state["search_triggered"] = True  # 필요시 사용
 
-# 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
+# 2. 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
 date_col1, date_col2 = st.columns([1, 1])
 with date_col2:
     st.date_input(
