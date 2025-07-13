@@ -296,14 +296,14 @@ with date_col2:
         "종료일",
         value=st.session_state["end_date"],
         key="end_date",
-        on_change=on_end_date_change
+        on_change=on_date_change
     )
 with date_col1:
     st.date_input(
         "시작일",
         value=st.session_state["start_date"],
         key="start_date",
-        on_change=on_end_date_change
+        on_change=on_date_change
     )
     
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
