@@ -347,29 +347,35 @@ def detect_lang(text):
     return "ko" if re.search(r"[가-힣]", text) else "en"
 
 @st.cache_data(show_spinner=False)
-def summarize_and_sentiment_with_openai_cached(text, do_summary=True):
+def summarize_and_sentiment_with_openai_cached(text, title=None, do_summary=True):
     if not OPENAI_API_KEY:
         return "OpenAI API 키가 설정되지 않았습니다.", None, None, None
+
+    # 본문이 너무 짧거나 오류일 때 요약 시도 금지
+    if not text or "본문 추출 오류" in text or len(text.strip()) < 50:
+        return "기사 본문 추출 실패로 요약 불가", None, None, None
+
     lang = detect_lang(text)
+    title = title or ""
     if lang == "ko":
         prompt = (
-            ("아래 기사 본문을 감성분석(긍정/부정만)하고" +
-             ("\n- [한 줄 요약]: 기사 전체 내용을 한 문장으로 요약" if do_summary else "") +
-             "\n- [감성]: 기사 전체의 감정을 긍정/부정 중 하나로만 답해줘. 중립은 절대 답하지 마. 파산, 자금난 등 부정적 사건이 중심이면 반드시 '부정'으로 답해줘.\n\n"
-             "아래 포맷으로 답변해줘:\n" +
-             ("[한 줄 요약]: (여기에 한 줄 요약)\n" if do_summary else "") +
-             "[감성]: (긍정/부정 중 하나만)\n\n"
-             "[기사 본문]\n" + text)
+            f"아래 기사 제목과 본문을 참고해, 반드시 제목과 관련된 내용만 감성분석(긍정/부정만)하고"
+            + ("\n- [한 줄 요약]: 기사 제목과 본문을 바탕으로, 제목과 관련된 내용만 한 문장으로 요약" if do_summary else "")
+            + "\n- [감성]: 기사 전체의 감정을 긍정/부정 중 하나로만 답해줘. 중립은 절대 답하지 마. 파산, 자금난 등 부정적 사건이 중심이면 반드시 '부정'으로 답해줘.\n\n"
+            "아래 포맷으로 답변해줘:\n"
+            + ("[한 줄 요약]: (여기에 한 줄 요약)\n" if do_summary else "")
+            + "[감성]: (긍정/부정 중 하나만)\n\n"
+            f"[기사 제목]\n{title}\n\n[기사 본문]\n{text}"
         )
     else:
         prompt = (
-            ("Analyze the following news article for sentiment (positive/negative only)." +
-             ("\n- [One-line Summary]: Summarize the entire article in one sentence." if do_summary else "") +
-             "\n- [Sentiment]: Classify the overall sentiment as either positive or negative ONLY. Never answer 'neutral'. If the article is about bankruptcy, crisis, etc., answer 'negative'.\n\n"
-             "Respond in this format:\n" +
-             ("[One-line Summary]: (your one-line summary)\n" if do_summary else "") +
-             "[Sentiment]: (positive/negative only)\n\n"
-             "[ARTICLE]\n" + text)
+            f"Analyze the following news article for sentiment (positive/negative only)."
+            + ("\n- [One-line Summary]: Summarize the article in one sentence, but make sure the summary is directly relevant to the TITLE." if do_summary else "")
+            + "\n- [Sentiment]: Classify the overall sentiment as either positive or negative ONLY. Never answer 'neutral'. If the article is about bankruptcy, crisis, etc., answer 'negative'.\n\n"
+            "Respond in this format:\n"
+            + ("[One-line Summary]: (your one-line summary)\n" if do_summary else "")
+            + "[Sentiment]: (positive/negative only)\n\n"
+            f"[TITLE]\n{title}\n\n[ARTICLE]\n{text}"
         )
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
