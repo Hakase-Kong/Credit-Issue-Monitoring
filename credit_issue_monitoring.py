@@ -53,8 +53,6 @@ if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
 if "raw_articles" not in st.session_state:
     st.session_state.raw_articles = {}  # for post-search date filtering
-if "industry_majors" not in st.session_state:
-    st.session_state["industry_majors"] = []
 
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
@@ -219,7 +217,7 @@ industry_filter_categories = {
 }
 
 # --- 카테고리-산업 대분류 매핑 함수 ---
-def update_industry_majors_from_favorites(selected_categories):
+def get_industry_majors_from_favorites(selected_categories):
     favorite_to_industry_major = {
         "5대금융지주": ["은행 및 금융지주"],
         "5대시중은행": ["은행 및 금융지주"],
@@ -227,11 +225,11 @@ def update_industry_majors_from_favorites(selected_categories):
         "소비재": ["소매"],
         # 필요시 추가 매핑
     }
-    majors = set(st.session_state.get("industry_majors", []))
+    majors = set()
     for cat in selected_categories:
         for major in favorite_to_industry_major.get(cat, []):
             majors.add(major)
-    st.session_state["industry_majors"] = list(majors)
+    return list(majors)
 
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
@@ -253,12 +251,10 @@ st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
 col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
 with col_cat_input:
     selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
-    # 카테고리 선택 시 산업 대분류 자동 선택
-    update_industry_majors_from_favorites(selected_categories)
+    for cat in selected_categories:
+        st.session_state.favorite_keywords.update(favorite_categories[cat])
 with col_cat_btn:
     category_search_clicked = st.button("🔍 검색", key="cat_search_btn", help="카테고리로 검색", use_container_width=True)
-for cat in selected_categories:
-    st.session_state.favorite_keywords.update(favorite_categories[cat])
 
 date_col1, date_col2 = st.columns([1, 1])
 with date_col1:
@@ -274,13 +270,14 @@ with st.expander("🏭 산업별 필터 옵션"):
     use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
     with col_major:
+        # 자동 선택될 대분류 리스트 만들기
+        industry_majors_default = get_industry_majors_from_favorites(selected_categories)
         selected_majors = st.multiselect(
             "대분류(산업)",
             list(industry_filter_categories.keys()),
             key="industry_majors",
-            default=st.session_state["industry_majors"]
+            default=industry_majors_default if industry_majors_default else st.session_state.get("industry_majors", [])
         )
-        st.session_state["industry_majors"] = selected_majors
     with col_sub:
         sub_options = []
         for major in selected_majors:
