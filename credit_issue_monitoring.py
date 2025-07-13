@@ -286,9 +286,39 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-# --- 즐겨찾기 카테고리 선택/검색 UI 제거 (코드에는 유지, 화면에는 미노출) ---
+# 2. 산업별 검색 (키워드 검색란 바로 아래)
+st.markdown("### 🏭 산업별 검색")
+col_major, col_sub, col_btn = st.columns([0.38, 0.38, 0.24])
+with col_major:
+    selected_majors = st.multiselect(
+        "대분류(산업)",
+        list(industry_filter_categories.keys()),
+        key="industry_majors"
+    )
+with col_sub:
+    # 누적 소분류 자동 선택
+    sub_options = []
+    for major in selected_majors:
+        sub_options.extend(industry_filter_categories.get(major, []))
+    sub_options = sorted(set(sub_options))
+    # 대분류 선택 시 모든 소분류 자동 선택
+    if selected_majors:
+        selected_sub = st.multiselect(
+            "소분류(이슈/기업명)",
+            sub_options,
+            default=sub_options,
+            key="industry_sub"
+        )
+    else:
+        selected_sub = st.multiselect(
+            "소분류(이슈/기업명)",
+            [],
+            key="industry_sub"
+        )
+with col_btn:
+    industry_search_clicked = st.button("검색", key="industry_search_btn", use_container_width=True)
 
-# 2. 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
+# 3. 날짜 위젯
 def on_date_change():
     filter_articles_by_date()
 
@@ -312,29 +342,6 @@ with date_col1:
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
     for major, subs in common_filter_categories.items():
         st.markdown(f"**{major}**: {', '.join(subs)}")
-
-# --- 산업별 필터 옵션 (이슈+기업명, 별도 검색버튼) ---
-with st.expander("🏭 산업별 필터 옵션"):
-    use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
-    col_major, col_sub = st.columns([1, 1])
-    with col_major:
-        selected_majors = st.multiselect(
-            "대분류(산업)",
-            list(industry_filter_categories.keys()),
-            key="industry_majors"
-        )
-    with col_sub:
-        sub_options = []
-        for major in selected_majors:
-            sub_options.extend(industry_filter_categories.get(major, []))
-        sub_options = sorted(set(sub_options))
-        selected_sub = st.multiselect(
-            "소분류(이슈/기업명)",
-            sub_options,
-            key="industry_sub"
-        )
-    # 별도의 검색 버튼
-    industry_search_clicked = st.button("산업별 필터로 검색", key="industry_search_btn")
 
 # --- 키워드 필터 옵션 (하단으로 이동) ---
 with st.expander("🔍 키워드 필터 옵션"):
@@ -579,7 +586,7 @@ if search_clicked or st.session_state.get("search_triggered"):
             process_keywords(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
-# 산업별 필터로 검색 버튼 동작
+# 산업별 검색 버튼 동작
 if industry_search_clicked and selected_sub:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(
@@ -592,7 +599,7 @@ if industry_search_clicked and selected_sub:
 def article_passes_all_filters(article):
     filters = []
     filters.append(ALL_COMMON_FILTER_KEYWORDS)
-    if st.session_state.get("use_industry_filter", False):
+    if st.session_state.get("industry_sub", []):
         filters.append(st.session_state.get("industry_sub", []))
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
         return False
@@ -600,7 +607,6 @@ def article_passes_all_filters(article):
         all_keywords = []
         if keywords_input:
             all_keywords.extend([k.strip() for k in keywords_input.split(",") if k.strip()])
-        # 즐겨찾기 카테고리 UI는 제거되었으므로 selected_categories 사용하지 않음
         if not article_contains_exact_keyword(article, all_keywords):
             return False
     return or_keyword_filter(article, *filters)
