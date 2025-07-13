@@ -215,7 +215,6 @@ industry_filter_categories = {
     ]
 }
 
-# --- Pure Python 핵심키워드 추출 함수 ---
 KOREAN_STOPWORDS = {
     '의', '이', '가', '은', '는', '을', '를', '에', '에서', '으로', '와', '과', '도', '로', '및', '한', '하다', '되다',
     '…', '“', '”', '‘', '’', '등', '및', '그', '저', '더', '또', '것', '수', '등', '및', '로', '에서', '까지', '부터'
@@ -252,14 +251,14 @@ def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.
         seen_keywords_hash.add(kw_hash)
     return unique_articles
 
-# --- 날짜 기본값: 종료일은 오늘, 시작일은 종료일 1주일 전 ---
+# 날짜 기본값: 종료일은 오늘, 시작일은 종료일 1주일 전
 today = date.today()
 if "end_date" not in st.session_state:
     st.session_state["end_date"] = today
 if "start_date" not in st.session_state:
-    st.session_state["start_date"] = today - timedelta(days=7)
+    st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
 
-# --- UI 시작 ---
+# UI 시작
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
 with col_title:
@@ -286,18 +285,16 @@ with col_cat_btn:
 for cat in selected_categories:
     st.session_state.favorite_keywords.update(favorite_categories[cat])
 
-# 날짜 입력 (시작일은 종료일 1주일 전, 종료일은 오늘 기본값, 종료일 바뀌면 시작일 자동 조정)
+# 날짜 입력 (종료일 바뀌면 시작일 자동 조정)
 def on_end_date_change():
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
     st.session_state["search_triggered"] = True
 
 date_col1, date_col2 = st.columns([1, 1])
 with date_col2:
-    end_date = st.date_input("종료일", value=st.session_state["end_date"], key="end_date", on_change=on_end_date_change)
-    st.session_state["end_date"] = end_date
+    st.date_input("종료일", value=st.session_state["end_date"], key="end_date", on_change=on_end_date_change)
 with date_col1:
-    start_date = st.date_input("시작일", value=st.session_state["start_date"], key="start_date")
-    st.session_state["start_date"] = start_date
+    st.date_input("시작일", value=st.session_state["start_date"], key="start_date")
 
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
@@ -672,7 +669,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
                     key = f"{keyword}_{idx}_{unique_id}"
-                    # 기사 리스트에서는 본문 추출/요약을 하지 않음
                     sentiment_label = ""
                     sentiment_class = ""
                     sentiment_html = ""
@@ -765,7 +761,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-# --- 날짜 변경 시 필터링 ---
+# 날짜 변경 시 필터링
 def filter_articles_by_date():
     st.session_state.filtered_results = {}
     for keyword, articles in st.session_state.search_results.items():
@@ -776,7 +772,7 @@ def filter_articles_by_date():
         if filtered:
             st.session_state.filtered_results[keyword] = filtered
 
-# --- 날짜 위젯 값이 바뀌면 자동 필터링 ---
+# 날짜 위젯 값이 바뀌면 자동 필터링
 if st.session_state.search_results:
     filter_articles_by_date()
     filtered_results = {}
