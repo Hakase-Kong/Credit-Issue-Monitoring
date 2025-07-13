@@ -806,8 +806,8 @@ if st.session_state.search_results:
     for keyword, articles in st.session_state.search_results.items():
         filtered_articles = [
             a for a in articles
-            if article_passes_all_filters(a) and
-               start_date <= datetime.strptime(a["date"], "%Y-%m-%d").date() <= end_date
+            if article_passes_all_filters(a)
+            and st.session_state["start_date"] <= datetime.strptime(a["date"], "%Y-%m-%d").date() <= st.session_state["end_date"]
         ]
         if filtered_articles:
             filtered_results[keyword] = filtered_articles
