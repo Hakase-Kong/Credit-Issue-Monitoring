@@ -286,9 +286,8 @@ for cat in selected_categories:
 
 
 # 2. 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
-def on_end_date_change():
+def on_date_change():
     filter_articles_by_date()
-    st.rerun()
 
 date_col1, date_col2 = st.columns([1, 1])
 with date_col2:
