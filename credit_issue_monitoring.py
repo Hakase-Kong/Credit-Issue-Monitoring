@@ -53,6 +53,8 @@ if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
 if "raw_articles" not in st.session_state:
     st.session_state.raw_articles = {}  # for post-search date filtering
+if "industry_majors" not in st.session_state:
+    st.session_state["industry_majors"] = []
 
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
@@ -216,6 +218,21 @@ industry_filter_categories = {
     ]
 }
 
+# --- 카테고리-산업 대분류 매핑 함수 ---
+def update_industry_majors_from_favorites(selected_categories):
+    favorite_to_industry_major = {
+        "5대금융지주": ["은행 및 금융지주"],
+        "5대시중은행": ["은행 및 금융지주"],
+        "비철/철강": ["철강", "비철"],
+        "소비재": ["소매"],
+        # 필요시 추가 매핑
+    }
+    majors = set(st.session_state.get("industry_majors", []))
+    for cat in selected_categories:
+        for major in favorite_to_industry_major.get(cat, []):
+            majors.add(major)
+    st.session_state["industry_majors"] = list(majors)
+
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
@@ -224,7 +241,6 @@ with col_title:
 with col_option1:
     show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
 with col_option2:
-    # 2. 요약 기능 기본값 해제
     enable_summary = st.checkbox("요약 기능 적용", value=False, key="enable_summary")
 
 col_kw_input, col_kw_btn = st.columns([0.8, 0.2])
@@ -237,6 +253,8 @@ st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
 col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
 with col_cat_input:
     selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
+    # 카테고리 선택 시 산업 대분류 자동 선택
+    update_industry_majors_from_favorites(selected_categories)
 with col_cat_btn:
     category_search_clicked = st.button("🔍 검색", key="cat_search_btn", help="카테고리로 검색", use_container_width=True)
 for cat in selected_categories:
@@ -259,8 +277,10 @@ with st.expander("🏭 산업별 필터 옵션"):
         selected_majors = st.multiselect(
             "대분류(산업)",
             list(industry_filter_categories.keys()),
-            key="industry_majors"
+            key="industry_majors",
+            default=st.session_state["industry_majors"]
         )
+        st.session_state["industry_majors"] = selected_majors
     with col_sub:
         sub_options = []
         for major in selected_majors:
@@ -455,11 +475,9 @@ def remove_duplicate_articles_by_title(articles, threshold=0.75):
             titles.append(title)
     return unique_articles
 
-# --- 병렬 뉴스 수집 ---
+# --- 병렬 뉴스 수집 및 카드형 결과 기본 출력 ---
 def process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=False):
-    # 1. 키워드별로 결과가 도착하는 즉시 화면에 출력
     progress_placeholder = st.empty()
-    result_placeholder = st.container()
     st.session_state.raw_articles = {}  # for post-search date filtering
     search_results = {}
     def fetch_for_keyword(k):
@@ -478,13 +496,14 @@ def process_keywords_parallel(keyword_list, start_date, end_date, require_keywor
             if k not in st.session_state.show_limit:
                 st.session_state.show_limit[k] = 5
             progress_placeholder.info(f"'{k}' 뉴스 {len(articles)}건 수집 완료 ({i+1}/{len(keyword_list)})")
-            # 키워드별로 바로바로 기사 리스트를 보여줌
-            with result_placeholder:
-                st.markdown(f"**[{k}] 기사 미리보기 (최대 5건)**")
-                for a in articles[:5]:
-                    st.markdown(f"- [{a['title']}]({a['link']}) {a['date']} | {a['source']}")
     st.session_state.search_results = search_results
     progress_placeholder.empty()
+    render_articles_with_single_summary_and_telegram(
+        search_results,
+        st.session_state.show_limit,
+        show_sentiment_badge=st.session_state.get("show_sentiment_badge", False),
+        enable_summary=st.session_state.get("enable_summary", False)
+    )
 
 def detect_lang_from_title(title):
     return "ko" if re.search(r"[가-힣]", title) else "en"
@@ -598,7 +617,7 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
     output.seek(0)
     return output
 
-# --- 3. 더보기 시 빠른 기사 열람 (전체 rerun이 아닌 show_limit만 증가) ---
+# --- 카드형 결과 기본 출력 ---
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
@@ -612,12 +631,11 @@ def render_articles_with_single_summary_and_telegram(
     col_list, col_summary = st.columns([1, 1])
 
     with col_list:
-        st.markdown("### 기사 요약 결과")
+        st.markdown("### 검색 결과")
         for keyword, articles in results.items():
             articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
-            # 카드형: 2열 배치
             card_cols = st.columns(2)
             for idx, article in enumerate(articles[:limit]):
                 col = card_cols[idx % 2]
@@ -633,7 +651,6 @@ def render_articles_with_single_summary_and_telegram(
                             f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
-                        # 감성분석 결과(요약X) 미리보기 (선택적)
                         cache_key = f"summary_{key}"
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
@@ -698,6 +715,7 @@ def render_articles_with_single_summary_and_telegram(
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
+# --- 검색 트리거 ---
 search_clicked = False
 if keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
