@@ -8,6 +8,7 @@ from datetime import datetime, date, timedelta
 import telepot
 from openai import OpenAI
 import newspaper  # newspaper3k
+import difflib
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -24,6 +25,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 경고 메시지(Warning, Exception 등) 영역을 CSS로 숨기기
 st.markdown("""
 <style>
     .stAlert, .stException, .stWarning {
@@ -35,6 +37,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 제외 키워드 ---
 EXCLUDE_TITLE_KEYWORDS = [
     "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구", "우승", "무승부", "경기", "패배", "스포츠", "스폰서",
     "부고", "인사", "승진", "임명", "발령", "인사발령", "인사이동",
@@ -49,6 +52,7 @@ def exclude_by_title_keywords(title, exclude_keywords):
             return True
     return False
 
+# --- 세션 상태 변수 초기화 ---
 if "favorite_keywords" not in st.session_state:
     st.session_state.favorite_keywords = set()
 if "search_results" not in st.session_state:
@@ -62,11 +66,13 @@ if "selected_articles" not in st.session_state:
 if "filtered_results" not in st.session_state:
     st.session_state.filtered_results = {}
 
+# 최초 실행 시에만 session_state 값 세팅
 if "end_date" not in st.session_state:
     st.session_state["end_date"] = date.today()
 if "start_date" not in st.session_state:
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
-
+    
+# --- 즐겨찾기 카테고리(변경 금지, UI 미노출) ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -87,6 +93,8 @@ favorite_categories = {
     "특수채": ["주택도시보증공사", "기업은행"]
 }
 
+# ---- 대분류별 기업/이슈 분리 및 통합 ----
+# 1. 은행 및 금융지주
 industry_filter_categories = {}
 industry_filter_categories["은행 및 금융지주"] = [
     "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
@@ -94,18 +102,24 @@ industry_filter_categories["은행 및 금융지주"] = [
 ]
 favorite_categories["은행 및 금융지주"] = favorite_categories["5대금융지주"] + favorite_categories["5대시중은행"]
 
+# 2. 전기전자
 industry_filter_categories["전기전자"] = [
     "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
 ]
 favorite_categories["전기전자"] = favorite_categories["전기/전자"]
 
+# 3. 철강/비철 통합
 industry_filter_categories["철강/비철"] = [
+    # 철강 이슈
     "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
     "중국 수출 감소", "건설경기", "조선 수요", "파업",
+    # 비철 이슈
     "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
 ]
 favorite_categories["철강/비철"] = favorite_categories["비철/철강"]
 
+# 기존 "철강", "비철", "전기/전자", "5대금융지주", "5대시중은행", "비철/철강" 대분류는 industry_filter_categories에서 사용하지 않음
+# 나머지 대분류는 기존대로 추가
 industry_filter_categories.update({
     "보험사": [
         "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
@@ -153,6 +167,7 @@ industry_filter_categories.update({
     ]
 })
 
+# --- 공통 필터 옵션(대분류/소분류 없이 모두 적용) ---
 common_filter_categories = {
     "신용/등급": [
         "신용등급", "등급전망", "하락", "강등", "하향", "상향", "디폴트", "부실", "부도", "미지급", "수요 미달", "미매각", "제도 개편", "EOD"
@@ -176,18 +191,117 @@ common_filter_categories = {
         "횡령", "배임", "공정거래", "오너리스크", "대주주", "지배구조"
     ]
 }
+ALL_COMMON_FILTER_KEYWORDS = []
+for keywords in common_filter_categories.values():
+    ALL_COMMON_FILTER_KEYWORDS.extend(keywords)
 
-# --- 공통 필터 옵션 UI (키워드별 체크박스) ---
-with st.expander("🧩 공통 필터 옵션"):
-    common_filter_selected = {}
-    for major, subs in common_filter_categories.items():
-        st.markdown(f"**{major}**")
-        cols = st.columns(len(subs))
-        for i, kw in enumerate(subs):
-            checked = cols[i].checkbox(kw, value=True, key=f"common_filter_{major}_{kw}")
-            common_filter_selected[kw] = checked
+# --- 산업별 필터 옵션 + 즐겨찾기 기업명 포함 ---
+industry_filter_categories = {
+    "은행 및 금융지주": [
+        "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
+        "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
+    ] + favorite_categories["5대금융지주"] + favorite_categories["5대시중은행"],
+    "보험사": [
+        "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
+        "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
+        "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
+    ] + favorite_categories["보험사"],
+    "카드사": [
+        "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
+        "건전성", "케이뱅크", "이탈"
+    ] + favorite_categories["카드사"],
+    "캐피탈": [
+        "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
+        "조정총자산수익률", "군인공제회"
+    ] + favorite_categories["캐피탈"],
+    "지주사": [
+        "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
+        "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
+    ] + favorite_categories["지주사"],
+    "에너지": [
+        "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
+        "터미널", "윤활유"
+    ] + favorite_categories["에너지"],
+    "발전": [
+        "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
+        "가동률", "도시가스"
+    ] + favorite_categories["발전"],
+    "자동차": [
+        "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
+    ] + favorite_categories["자동차"],
+    "전기전자": [
+        "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
+    ] + favorite_categories["전기/전자"],
+    "철강": [
+        "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
+        "중국 수출 감소", "건설경기", "조선 수요", "파업"
+    ] + favorite_categories["비철/철강"],
+    "비철": [
+        "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
+    ],
+    "소비재": [
+        "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
+        "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
+    ] + favorite_categories["소비재"],
+    "석유화학": [
+        "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
+        "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
+    ] + favorite_categories["석유화학"],
+    "건설": [
+        "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
+        "시공능력순위", "미분양", "대손충당금"
+    ] + favorite_categories["건설"],
+    "특수채": [
+        "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
+        "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
+    ] + favorite_categories["특수채"]
+}
 
-active_common_keywords = [kw for kw, checked in common_filter_selected.items() if checked]
+KOREAN_STOPWORDS = {
+    '의', '이', '가', '은', '는', '을', '를', '에', '에서', '으로', '와', '과', '도', '로', '및', '한', '하다', '되다',
+    '…', '“', '”', '‘', '’', '등', '및', '그', '저', '더', '또', '것', '수', '등', '및', '로', '에서', '까지', '부터'
+}
+ENGLISH_STOPWORDS = {
+    "the", "and", "is", "in", "to", "of", "a", "on", "for", "with", "as", "by", "at", "an", "be", "from", "it", "that",
+    "this", "are", "was", "but", "or", "not", "has", "have", "had", "will", "would", "can", "could", "should"
+}
+
+def extract_keywords(text):
+    if re.search(r"[가-힣]", text):
+        words = re.findall(r"[가-힣]{2,}", text)
+        keywords = [w for w in words if w not in KOREAN_STOPWORDS]
+        return set(keywords)
+    else:
+        words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+        keywords = [w for w in words if w not in ENGLISH_STOPWORDS]
+        return set(keywords)
+
+def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.75, keyword_threshold=0.6):
+    unique_articles = []
+    seen_titles = set()
+    seen_keywords_hash = set()
+    for article in articles:
+        title = article.get("title", "")
+        full_text = article.get("title", "") + " " + article.get("description", "")
+        keywords = extract_keywords(full_text)
+        title_key = title.strip().lower()
+        kw_hash = hash(frozenset(keywords))
+        if title_key in seen_titles or kw_hash in seen_keywords_hash:
+            continue
+        unique_articles.append(article)
+        seen_titles.add(title_key)
+        seen_keywords_hash.add(kw_hash)
+    return unique_articles
+
+# UI 시작
+st.set_page_config(layout="wide")
+col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
+with col_title:
+    st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
+with col_option1:
+    show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
+with col_option2:
+    enable_summary = st.checkbox("요약 기능 적용", value=False, key="enable_summary")
 
 # 1. 키워드 입력/검색 버튼 (한 줄, 버튼 오른쪽)
 col_kw_input, col_kw_btn = st.columns([0.8, 0.2])
@@ -196,32 +310,42 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-# 2. 산업별 검색 (대분류 다중선택 → 각 대분류별 기업/이슈 박스 생성)
+# 2. 산업별 검색 (키워드 검색란 바로 아래, 대분류-기업-이슈 3단계)
 st.markdown("### 🏭 산업별 검색")
+
 selected_majors = st.multiselect(
-    "대분류(산업)", list(industry_filter_categories.keys()), key="industry_majors"
+    "대분류(산업)", 
+    list(industry_filter_categories.keys()), 
+    key="industry_majors"
 )
 
+# 각 대분류별로 기업/이슈 선택 박스 생성
 industry_inputs = []
 for idx, major in enumerate(selected_majors):
-    st.markdown(f"#### {major}")
+    st.markdown(f"#### [{major}]")
     companies = favorite_categories.get(major, [])
     issues = [k for k in industry_filter_categories[major] if k not in companies]
     selected_companies = st.multiselect(
-        f"[{major}] 기업", companies, default=companies, key=f"companies_{major}_{idx}"
+        f"기업 ({major})", 
+        companies, 
+        default=companies, 
+        key=f"companies_{major}_{idx}"
     )
     selected_issues = st.multiselect(
-        f"[{major}] 소분류(이슈)", issues, default=issues, key=f"issues_{major}_{idx}"
+        f"소분류(이슈) ({major})", 
+        issues, 
+        default=issues, 
+        key=f"issues_{major}_{idx}"
     )
     industry_inputs.append({
-        "major": major,
+        "industry": major,
         "companies": selected_companies,
         "issues": selected_issues
     })
 
 industry_search_clicked = st.button("검색", key="industry_search_btn", use_container_width=True)
 
-# 날짜 위젯
+# 3. 날짜 위젯
 def on_date_change():
     filter_articles_by_date()
 
