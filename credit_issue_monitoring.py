@@ -286,6 +286,10 @@ for cat in selected_categories:
 
 
 # 2. 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
+def on_end_date_change():
+    filter_articles_by_date()
+    st.rerun()
+
 date_col1, date_col2 = st.columns([1, 1])
 with date_col2:
     st.date_input(
@@ -298,7 +302,8 @@ with date_col1:
     st.date_input(
         "시작일",
         value=st.session_state["start_date"],
-        key="start_date"
+        key="start_date",
+        on_change=on_end_date_change
     )
     
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
