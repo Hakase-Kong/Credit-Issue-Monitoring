@@ -1,18 +1,10 @@
 import os
-import nltk
-
-os.environ['NLTK_DATA'] = '/tmp/nltk_data'
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import telepot
 from openai import OpenAI
 import newspaper  # newspaper3k
@@ -58,6 +50,8 @@ if "search_triggered" not in st.session_state:
     st.session_state.search_triggered = False
 if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
+if "filtered_results" not in st.session_state:
+    st.session_state.filtered_results = {}
 
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
@@ -258,6 +252,13 @@ def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.
         seen_keywords_hash.add(kw_hash)
     return unique_articles
 
+# --- 날짜 기본값: 종료일은 오늘, 시작일은 종료일 1주일 전 ---
+today = date.today()
+if "end_date" not in st.session_state:
+    st.session_state["end_date"] = today
+if "start_date" not in st.session_state:
+    st.session_state["start_date"] = today - timedelta(days=7)
+
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
@@ -285,12 +286,18 @@ with col_cat_btn:
 for cat in selected_categories:
     st.session_state.favorite_keywords.update(favorite_categories[cat])
 
-# 날짜 입력
+# 날짜 입력 (시작일은 종료일 1주일 전, 종료일은 오늘 기본값, 종료일 바뀌면 시작일 자동 조정)
+def on_end_date_change():
+    st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
+    st.session_state["search_triggered"] = True
+
 date_col1, date_col2 = st.columns([1, 1])
-with date_col1:
-    start_date = st.date_input("시작일")
 with date_col2:
-    end_date = st.date_input("종료일")
+    end_date = st.date_input("종료일", value=st.session_state["end_date"], key="end_date", on_change=on_end_date_change)
+    st.session_state["end_date"] = end_date
+with date_col1:
+    start_date = st.date_input("시작일", value=st.session_state["start_date"], key="start_date")
+    st.session_state["start_date"] = start_date
 
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
@@ -551,7 +558,7 @@ if search_clicked or st.session_state.get("search_triggered"):
         st.warning("키워드는 최대 10개까지 입력 가능합니다.")
     else:
         with st.spinner("뉴스 검색 중..."):
-            process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
+            process_keywords(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
 if category_search_clicked and selected_categories:
@@ -561,8 +568,8 @@ if category_search_clicked and selected_categories:
             keywords.update(favorite_categories[cat])
         process_keywords(
             sorted(keywords),
-            start_date,
-            end_date,
+            st.session_state["start_date"],
+            st.session_state["end_date"],
             require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
         )
 
@@ -758,10 +765,22 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-
-if st.session_state.search_results:
-    filtered_results = {}
+# --- 날짜 변경 시 필터링 ---
+def filter_articles_by_date():
+    st.session_state.filtered_results = {}
     for keyword, articles in st.session_state.search_results.items():
+        filtered = [
+            a for a in articles
+            if st.session_state["start_date"] <= datetime.strptime(a['date'], "%Y-%m-%d").date() <= st.session_state["end_date"]
+        ]
+        if filtered:
+            st.session_state.filtered_results[keyword] = filtered
+
+# --- 날짜 위젯 값이 바뀌면 자동 필터링 ---
+if st.session_state.search_results:
+    filter_articles_by_date()
+    filtered_results = {}
+    for keyword, articles in st.session_state.filtered_results.items():
         filtered_articles = [a for a in articles if article_passes_all_filters(a)]
         if filtered_articles:
             filtered_results[keyword] = filtered_articles
