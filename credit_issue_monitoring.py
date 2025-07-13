@@ -4,7 +4,7 @@ import pandas as pd
 from io import BytesIO
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import telepot
 from openai import OpenAI
 import newspaper
@@ -29,10 +29,11 @@ st.markdown("""
 
 # --- 제외 키워드 ---
 EXCLUDE_TITLE_KEYWORDS = [
-    "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구",
+    "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구", "우승", "무승부", "패배", "스포츠",
     "부고", "인사", "승진", "임명", "발령", "인사발령", "인사이동",
-    "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수",
-    "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가"
+    "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수", "봉사", "후원", "기부", "ESG", "지속가능",
+    "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가",
+    "스타트업", "혜택", "땡처리", "이벤트", "세일"    
 ]
 
 def exclude_by_title_keywords(title, exclude_keywords):
@@ -42,6 +43,8 @@ def exclude_by_title_keywords(title, exclude_keywords):
     return False
 
 # --- 세션 상태 변수 초기화 ---
+today = date.today()
+one_week_ago = today - timedelta(days=7)
 if "favorite_keywords" not in st.session_state:
     st.session_state.favorite_keywords = set()
 if "search_results" not in st.session_state:
@@ -54,6 +57,10 @@ if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
 if "raw_articles" not in st.session_state:
     st.session_state.raw_articles = {}  # for post-search date filtering
+if "start_date" not in st.session_state:
+    st.session_state["start_date"] = one_week_ago
+if "end_date" not in st.session_state:
+    st.session_state["end_date"] = today
 
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
@@ -287,9 +294,9 @@ with col_cat_btn:
 
 date_col1, date_col2 = st.columns([1, 1])
 with date_col1:
-    start_date = st.date_input("시작일")
+    start_date = st.date_input("시작일", key="start_date", value=st.session_state["start_date"])
 with date_col2:
-    end_date = st.date_input("종료일")
+    end_date = st.date_input("종료일", key="end_date", value=st.session_state["end_date"])
 
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
     selected_common_filters = render_common_filter_checkboxes(common_filter_categories)
@@ -321,13 +328,9 @@ with st.expander("🔍 키워드 필터 옵션"):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=False, key="require_keyword_in_title")
     require_exact_keyword_in_title_or_content = st.checkbox("키워드가 온전히 제목 또는 본문에 포함된 기사만 보기", value=False, key="require_exact_keyword_in_title_or_content")
 
-# 이하 함수 정의 및 본문(뉴스 수집, 요약, 필터, 카드형 결과 등)은 이전 답변과 동일하게 사용하시면 됩니다.
-# 단, 기사 필터링 함수에서 ALL_COMMON_FILTER_KEYWORDS 대신 아래처럼 사용하세요:
 
 def article_passes_all_filters(article):
-    # 공통 필터: 선택된 세부 필터만 적용
     filters = []
-    # flatten selected_common_filters
     selected_common_keywords = []
     for v in selected_common_filters.values():
         selected_common_keywords.extend(v)
@@ -785,7 +788,7 @@ if search_clicked or st.session_state.get("search_triggered"):
         st.warning("키워드는 최대 10개까지 입력 가능합니다.")
     else:
         with st.spinner("뉴스 검색 중..."):
-            process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
+            process_keywords_parallel(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
 if category_search_clicked and selected_categories:
@@ -795,12 +798,12 @@ if category_search_clicked and selected_categories:
             keywords.update(favorite_categories[cat])
         process_keywords_parallel(
             sorted(keywords),
-            start_date,
-            end_date,
+            st.session_state["start_date"],
+            st.session_state["end_date"],
             require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
         )
 
-# 4. 검색 후 날짜 필터링 기능 (추가 date picker)
+# --- 날짜 변경 시 자동 필터링 및 결과 갱신 ---
 if st.session_state.search_results:
     filtered_results = {}
     for keyword, articles in st.session_state.search_results.items():
