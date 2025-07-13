@@ -25,6 +25,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 경고 메시지(Warning, Exception 등) 영역을 CSS로 숨기기
+st.markdown("""
+<style>
+    .stAlert, .stException, .stWarning {
+        display: none !important;
+    }
+    [data-testid="stNotification"] {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- 제외 키워드 ---
 EXCLUDE_TITLE_KEYWORDS = [
     "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구",
