@@ -51,6 +51,8 @@ if "search_triggered" not in st.session_state:
     st.session_state.search_triggered = False
 if "selected_articles" not in st.session_state:
     st.session_state.selected_articles = []
+if "raw_articles" not in st.session_state:
+    st.session_state.raw_articles = {}  # for post-search date filtering
 
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
@@ -222,7 +224,8 @@ with col_title:
 with col_option1:
     show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
 with col_option2:
-    enable_summary = st.checkbox("요약 기능 적용", value=True, key="enable_summary")
+    # 2. 요약 기능 기본값 해제
+    enable_summary = st.checkbox("요약 기능 적용", value=False, key="enable_summary")
 
 col_kw_input, col_kw_btn = st.columns([0.8, 0.2])
 with col_kw_input:
@@ -454,18 +457,34 @@ def remove_duplicate_articles_by_title(articles, threshold=0.75):
 
 # --- 병렬 뉴스 수집 ---
 def process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=False):
+    # 1. 키워드별로 결과가 도착하는 즉시 화면에 출력
+    progress_placeholder = st.empty()
+    result_placeholder = st.container()
+    st.session_state.raw_articles = {}  # for post-search date filtering
+    search_results = {}
     def fetch_for_keyword(k):
         if is_english(k):
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        return k, remove_duplicate_articles_by_title(articles, threshold=0.75)
+        articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+        return k, articles
     with ThreadPoolExecutor(max_workers=8) as executor:
-        results = list(executor.map(fetch_for_keyword, keyword_list))
-    for k, articles in results:
-        st.session_state.search_results[k] = articles
-        if k not in st.session_state.show_limit:
-            st.session_state.show_limit[k] = 5
+        futures = {executor.submit(fetch_for_keyword, k): k for k in keyword_list}
+        for i, future in enumerate(futures):
+            k, articles = future.result()
+            search_results[k] = articles
+            st.session_state.raw_articles[k] = articles  # for post-search date filtering
+            if k not in st.session_state.show_limit:
+                st.session_state.show_limit[k] = 5
+            progress_placeholder.info(f"'{k}' 뉴스 {len(articles)}건 수집 완료 ({i+1}/{len(keyword_list)})")
+            # 키워드별로 바로바로 기사 리스트를 보여줌
+            with result_placeholder:
+                st.markdown(f"**[{k}] 기사 미리보기 (최대 5건)**")
+                for a in articles[:5]:
+                    st.markdown(f"- [{a['title']}]({a['link']}) {a['date']} | {a['source']}")
+    st.session_state.search_results = search_results
+    progress_placeholder.empty()
 
 def detect_lang_from_title(title):
     return "ko" if re.search(r"[가-힣]", title) else "en"
@@ -579,7 +598,8 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
     output.seek(0)
     return output
 
-def render_articles_with_single_summary_and_telegram(results, show_limit, show_sentiment_badge=True, enable_summary=True):
+# --- 3. 더보기 시 빠른 기사 열람 (전체 rerun이 아닌 show_limit만 증가) ---
+def render_articles_with_single_summary_and_telegram(results, show_limit, show_sentiment_badge=True, enable_summary=True, filter_start_date=None, filter_end_date=None):
     SENTIMENT_CLASS = {
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
@@ -594,6 +614,12 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
             articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+            # 4. 검색 후 시작일/종료일 필터링
+            if filter_start_date and filter_end_date:
+                articles = [
+                    a for a in articles
+                    if filter_start_date <= datetime.strptime(a["date"], "%Y-%m-%d").date() <= filter_end_date
+                ]
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
                 limit = st.session_state.show_limit.get(keyword, 5)
@@ -632,7 +658,8 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                 if limit < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         st.session_state.show_limit[keyword] += 10
-                        st.rerun()
+                        # rerun 없이 바로 아래에서 limit이 증가된 만큼 추가 기사가 노출됨
+                        st.experimental_rerun()
 
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
@@ -640,6 +667,12 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
             selected_articles = []
             for keyword, articles in results.items():
                 articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+                # 4. 검색 후 시작일/종료일 필터링
+                if filter_start_date and filter_end_date:
+                    articles = [
+                        a for a in articles
+                        if filter_start_date <= datetime.strptime(a["date"], "%Y-%m-%d").date() <= filter_end_date
+                    ]
                 limit = st.session_state.show_limit.get(keyword, 5)
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
@@ -720,15 +753,22 @@ if category_search_clicked and selected_categories:
             require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
         )
 
+# 4. 검색 후 날짜 필터링 기능 (추가 date picker)
 if st.session_state.search_results:
+    st.markdown("#### 🔎 추가 날짜 필터링")
+    filter_start_date = st.date_input("추가 시작일(필터)", value=start_date, key="filter_start_date")
+    filter_end_date = st.date_input("추가 종료일(필터)", value=end_date, key="filter_end_date")
     filtered_results = {}
     for keyword, articles in st.session_state.search_results.items():
         filtered_articles = [a for a in articles if article_passes_all_filters(a)]
+        # 날짜 필터는 render 함수에서 적용
         if filtered_articles:
             filtered_results[keyword] = filtered_articles
     render_articles_with_single_summary_and_telegram(
         filtered_results,
         st.session_state.show_limit,
         show_sentiment_badge=st.session_state.get("show_sentiment_badge", False),
-        enable_summary=st.session_state.get("enable_summary", True)
+        enable_summary=st.session_state.get("enable_summary", False),
+        filter_start_date=filter_start_date,
+        filter_end_date=filter_end_date
     )
