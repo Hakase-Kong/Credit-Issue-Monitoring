@@ -543,6 +543,16 @@ def remove_duplicate_articles_by_title(articles, threshold=0.75):
             titles.append(title)
     return unique_articles
 
+def remove_duplicate_articles_by_link(articles):
+    seen = set()
+    unique_articles = []
+    for article in articles:
+        link = article.get("link", "")
+        if link not in seen:
+            seen.add(link)
+            unique_articles.append(article)
+    return unique_articles
+
 # --- 병렬 뉴스 수집 및 카드형 결과 기본 출력 ---
 def process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=False):
     progress_placeholder = st.empty()
@@ -707,6 +717,7 @@ def render_articles_with_single_summary_and_telegram(
         st.markdown("### 검색 결과")
         for keyword, articles in results.items():
             articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+            articles = remove_duplicate_articles_by_link(articles)  # <<== 이 줄 추가!
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
             card_cols = st.columns(2)
@@ -732,59 +743,6 @@ def render_articles_with_single_summary_and_telegram(
                                     f"<span class='sentiment-badge {sentiment_class}'>({sentiment})</span>",
                                     unsafe_allow_html=True
                                 )
-            if limit < len(articles):
-                if st.button("더보기", key=f"more_{keyword}"):
-                    st.session_state.show_limit[keyword] += 10
-                    st.rerun()
-
-    with col_summary:
-        st.markdown("### 선택된 기사 요약/감성분석")
-        with st.container(border=True):
-            selected_articles = []
-            for keyword, articles in results.items():
-                articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
-                limit = st.session_state.show_limit.get(keyword, 5)
-                for idx, article in enumerate(articles[:limit]):
-                    key = make_unique_key(keyword, article['link'])
-                    cache_key = f"summary_{key}"
-                    if st.session_state.article_checked.get(key, False):
-                        if cache_key in st.session_state:
-                            one_line, summary, sentiment, full_text = st.session_state[cache_key]
-                        else:
-                            one_line, summary, sentiment, full_text = summarize_article_from_url(
-                                article['link'], article['title'], do_summary=enable_summary
-                            )
-                            st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
-                        selected_articles.append({
-                            "키워드": keyword,
-                            "기사제목": article.get('title') or "제목없음",
-                            "요약": one_line,
-                            "요약본": summary,
-                            "감성": sentiment,
-                            "링크": article['link'],
-                            "날짜": article['date'],
-                            "출처": article['source']
-                        })
-                        st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
-                        st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
-                        if enable_summary:
-                            st.markdown(f"- **한 줄 요약:** {one_line}")
-                        st.markdown(f"- **감성분석:** `{sentiment}`")
-                        st.markdown("---")
-            st.session_state.selected_articles = selected_articles
-            st.write(f"선택된 기사 개수: {len(selected_articles)}")
-            if st.session_state.selected_articles:
-                excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
-                    st.session_state.selected_articles,
-                    favorite_categories,
-                    excel_company_categories
-                )
-                st.download_button(
-                    label="📥 맞춤 엑셀 다운로드",
-                    data=excel_bytes.getvalue(),
-                    file_name="뉴스요약_맞춤형.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
 
 # --- 검색 트리거 ---
 search_clicked = False
