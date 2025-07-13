@@ -4,7 +4,7 @@ pandas
 requests
 nltk
 openpyxl
-newspaper3k
+newspaper
 telepot
 lxml_html_clean
 xlsxwriter
