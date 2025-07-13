@@ -286,35 +286,38 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-# 2. 산업별 검색 (키워드 검색란 바로 아래)
+# 2. 산업별 검색 (키워드 검색란 바로 아래, 대분류-기업-이슈 3단계)
 st.markdown("### 🏭 산업별 검색")
-col_major, col_sub, col_btn = st.columns([0.38, 0.38, 0.24])
+col_major, col_company, col_issue, col_btn = st.columns([0.25, 0.25, 0.30, 0.20])
+
 with col_major:
-    selected_majors = st.multiselect(
+    selected_industry = st.selectbox(
         "대분류(산업)",
         list(industry_filter_categories.keys()),
-        key="industry_majors"
+        key="industry_major"
     )
-with col_sub:
-    # 누적 소분류 자동 선택
-    sub_options = []
-    for major in selected_majors:
-        sub_options.extend(industry_filter_categories.get(major, []))
-    sub_options = sorted(set(sub_options))
-    # 대분류 선택 시 모든 소분류 자동 선택
-    if selected_majors:
-        selected_sub = st.multiselect(
-            "소분류(이슈/기업명)",
-            sub_options,
-            default=sub_options,
-            key="industry_sub"
-        )
-    else:
-        selected_sub = st.multiselect(
-            "소분류(이슈/기업명)",
-            [],
-            key="industry_sub"
-        )
+
+# 해당 산업군의 기업/이슈 분리
+industry_companies = favorite_categories.get(selected_industry, [])
+industry_issues = [k for k in industry_filter_categories[selected_industry] if k not in industry_companies]
+
+with col_company:
+    # 대분류 선택 시 기업 자동 전체 선택
+    selected_companies = st.multiselect(
+        "기업",
+        industry_companies,
+        default=industry_companies,
+        key="industry_companies"
+    )
+
+with col_issue:
+    selected_issues = st.multiselect(
+        "소분류(이슈)",
+        industry_issues,
+        default=industry_issues,
+        key="industry_issues"
+    )
+
 with col_btn:
     industry_search_clicked = st.button("검색", key="industry_search_btn", use_container_width=True)
 
@@ -586,21 +589,24 @@ if search_clicked or st.session_state.get("search_triggered"):
             process_keywords(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
-# 산업별 검색 버튼 동작
-if industry_search_clicked and selected_sub:
+# 산업별 검색 버튼 동작 (대분류-기업-이슈 구조)
+if industry_search_clicked and selected_companies:
     with st.spinner("뉴스 검색 중..."):
         process_keywords(
-            selected_sub,
+            selected_companies,
             st.session_state["start_date"],
             st.session_state["end_date"],
             require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
         )
+    # 이슈는 후처리 필터에서 적용
 
 def article_passes_all_filters(article):
     filters = []
     filters.append(ALL_COMMON_FILTER_KEYWORDS)
-    if st.session_state.get("industry_sub", []):
-        filters.append(st.session_state.get("industry_sub", []))
+    # 산업별 검색에서 이슈(OR) 필터 적용
+    industry_issues_filter = st.session_state.get("industry_issues", [])
+    if industry_issues_filter:
+        filters.append(industry_issues_filter)
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
         return False
     if st.session_state.get("require_exact_keyword_in_title_or_content", False):
