@@ -53,13 +53,12 @@ if "selected_articles" not in st.session_state:
 if "filtered_results" not in st.session_state:
     st.session_state.filtered_results = {}
 
-# --- 날짜 기본값: 종료일은 오늘, 시작일은 종료일 1주일 전 ---
-today = date.today()
+# 최초 실행 시에만 기본값 세팅
 if "end_date" not in st.session_state:
-    st.session_state["end_date"] = today
+    st.session_state["end_date"] = date.today()
 if "start_date" not in st.session_state:
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
-
+    
 # --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
     "국/공채": [],
@@ -287,15 +286,26 @@ for cat in selected_categories:
 
 # 날짜 입력 (종료일 바뀌면 시작일 자동 조정)
 def on_end_date_change():
+    # 종료일이 바뀌면 시작일을 1주일 전으로 자동 조정
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
-    st.session_state["search_triggered"] = True
+    st.session_state["search_triggered"] = True  # 필요시 사용
 
+# 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
 date_col1, date_col2 = st.columns([1, 1])
 with date_col2:
-    st.date_input("종료일", value=st.session_state["end_date"], key="end_date", on_change=on_end_date_change)
+    st.date_input(
+        "종료일",
+        value=st.session_state["end_date"],
+        key="end_date",
+        on_change=on_end_date_change
+    )
 with date_col1:
-    st.date_input("시작일", value=st.session_state["start_date"], key="start_date")
-
+    st.date_input(
+        "시작일",
+        value=st.session_state["start_date"],
+        key="start_date"
+    )
+    
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
     for major, subs in common_filter_categories.items():
@@ -359,23 +369,25 @@ def summarize_and_sentiment_with_openai_cached(text, title=None, do_summary=True
     title = title or ""
     if lang == "ko":
         prompt = (
-            f"아래 기사 제목과 본문을 참고해, 반드시 제목과 관련된 내용만 감성분석(긍정/부정만)하고"
-            + ("\n- [한 줄 요약]: 기사 제목과 본문을 바탕으로, 제목과 관련된 내용만 한 문장으로 요약" if do_summary else "")
-            + "\n- [감성]: 기사 전체의 감정을 긍정/부정 중 하나로만 답해줘. 중립은 절대 답하지 마. 파산, 자금난 등 부정적 사건이 중심이면 반드시 '부정'으로 답해줘.\n\n"
+            f"아래 기사 제목, 본문, 그리고 검색 키워드 '{keyword}'를 참고해, 반드시 한 줄 요약에 '{keyword}'가 포함되도록 해줘. "
+            "만약 키워드와 관련 없는 기사라면 '키워드와 관련된 내용이 기사에 없음'이라고 답해줘.\n"
+            "- [한 줄 요약]: 기사 제목, 본문, 키워드를 바탕으로, 반드시 키워드가 포함된 한 문장으로 요약\n"
+            "- [감성]: 기사 전체의 감정을 긍정/부정 중 하나로만 답해줘. 중립은 절대 답하지 마. 파산, 자금난 등 부정적 사건이 중심이면 반드시 '부정'으로 답해줘.\n\n"
             "아래 포맷으로 답변해줘:\n"
-            + ("[한 줄 요약]: (여기에 한 줄 요약)\n" if do_summary else "")
-            + "[감성]: (긍정/부정 중 하나만)\n\n"
-            f"[기사 제목]\n{title}\n\n[기사 본문]\n{text}"
+            "[한 줄 요약]: (여기에 한 줄 요약)\n"
+            "[감성]: (긍정/부정 중 하나만)\n\n"
+            f"[검색 키워드]\n{keyword}\n[기사 제목]\n{title}\n[기사 본문]\n{text}"
         )
     else:
         prompt = (
-            f"Analyze the following news article for sentiment (positive/negative only)."
-            + ("\n- [One-line Summary]: Summarize the article in one sentence, but make sure the summary is directly relevant to the TITLE." if do_summary else "")
-            + "\n- [Sentiment]: Classify the overall sentiment as either positive or negative ONLY. Never answer 'neutral'. If the article is about bankruptcy, crisis, etc., answer 'negative'.\n\n"
-            "Respond in this format:\n"
-            + ("[One-line Summary]: (your one-line summary)\n" if do_summary else "")
-            + "[Sentiment]: (positive/negative only)\n\n"
-            f"[TITLE]\n{title}\n\n[ARTICLE]\n{text}"
+        f"Summarize the following article in one sentence, and make sure the summary includes the keyword '{keyword}'. "
+        "If the keyword is not relevant to the article, answer: 'No content related to the keyword.'\n"
+        "- [One-line Summary]: Summarize with the keyword included.\n"
+        "- [Sentiment]: positive or negative only.\n\n"
+        "Respond in this format:\n"
+        "[One-line Summary]: (your one-line summary)\n"
+        "[Sentiment]: (positive/negative only)\n\n"
+        f"[KEYWORD]\n{keyword}\n[TITLE]\n{title}\n[ARTICLE]\n{text}"
         )
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
