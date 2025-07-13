@@ -764,77 +764,77 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                         st.rerun()
 
    with col_summary:
-    st.markdown("### 선택된 기사 요약/감성분석")
-    with st.container(border=True):
-        selected_articles = []
-        def safe_title_for_append(val):
-            if val is None or str(val).strip() == "" or str(val).lower() == "nan" or str(val) == "0":
-                return "제목없음"
-            return str(val)
-        for keyword, articles in results.items():
-            articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
-            limit = st.session_state.show_limit.get(keyword, 5)
-            for idx, article in enumerate(articles[:limit]):
-                unique_id = re.sub(r'\W+', '', article['link'])[-16:]
-                key = f"{keyword}_{idx}_{unique_id}"
-                cache_key = f"summary_{key}"
-                if st.session_state.article_checked.get(key, False):
-                    if cache_key in st.session_state:
-                        one_line, summary, sentiment, full_text = st.session_state[cache_key]
-                    else:
-                        one_line, summary, sentiment, full_text = summarize_article_from_url(
-                            article['link'], article['title'], do_summary=enable_summary
-                        )
-                        st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
-                    selected_articles.append({
-                        "키워드": keyword,
-                        "기사제목": safe_title_for_append(article.get('title')),
-                        "요약": one_line,
-                        "요약본": summary,
-                        "감성": sentiment,
-                        "링크": article['link'],
-                        "날짜": article['date'],
-                        "출처": article['source']
-                    })
-                    # 감성 배지 표시
-                    if show_sentiment_badge:
-                        st.markdown(
-                            f"#### [{article['title']}]({article['link']}) "
-                            f"<span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
-                    st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
-                    if enable_summary:
-                        st.markdown(f"- **한 줄 요약:** {one_line}")
-                    st.markdown(f"- **감성분석:** `{sentiment}`")
-                    st.markdown("---")
-        st.session_state.selected_articles = selected_articles
-        st.write(f"선택된 기사 개수: {len(selected_articles)}")
+       st.markdown("### 선택된 기사 요약/감성분석")
+       with st.container(border=True):
+           selected_articles = []
+           def safe_title_for_append(val):
+               if val is None or str(val).strip() == "" or str(val).lower() == "nan" or str(val) == "0":
+                   return "제목없음"
+               return str(val)
+           for keyword, articles in results.items():
+               articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
+               limit = st.session_state.show_limit.get(keyword, 5)
+               for idx, article in enumerate(articles[:limit]):
+                   unique_id = re.sub(r'\W+', '', article['link'])[-16:]
+                   key = f"{keyword}_{idx}_{unique_id}"
+                   cache_key = f"summary_{key}"
+                   if st.session_state.article_checked.get(key, False):
+                       if cache_key in st.session_state:
+                           one_line, summary, sentiment, full_text = st.session_state[cache_key]
+                       else:
+                           one_line, summary, sentiment, full_text = summarize_article_from_url(
+                               article['link'], article['title'], do_summary=enable_summary
+                           )
+                           st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
+                       selected_articles.append({
+                           "키워드": keyword,
+                           "기사제목": safe_title_for_append(article.get('title')),
+                           "요약": one_line,
+                           "요약본": summary,
+                           "감성": sentiment,
+                           "링크": article['link'],
+                           "날짜": article['date'],
+                           "출처": article['source']
+                       })
+                       # 감성 배지 표시
+                       if show_sentiment_badge:
+                           st.markdown(
+                               f"#### [{article['title']}]({article['link']}) "
+                               f"<span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
+                               unsafe_allow_html=True
+                           )
+                       else:
+                           st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
+                       st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
+                       if enable_summary:
+                           st.markdown(f"- **한 줄 요약:** {one_line}")
+                       st.markdown(f"- **감성분석:** `{sentiment}`")
+                       st.markdown("---")
+           st.session_state.selected_articles = selected_articles
+           st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
-        excel_company_order = []
-        for cat in ["국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈", "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"]:
-            excel_company_order.extend(excel_company_categories.get(cat, []))
+           excel_company_order = []
+           for cat in ["국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈", "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"]:
+               excel_company_order.extend(excel_company_categories.get(cat, []))
 
-        # 개선: 버튼을 항상 노출, 데이터 없으면 비활성화
-        excel_bytes = None
-        if st.session_state.selected_articles:
-            excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
-                st.session_state.selected_articles,
-                favorite_categories,
-                excel_company_categories
-            )
-        st.download_button(
-            label="📥 맞춤 엑셀 다운로드",
-            data=excel_bytes.getvalue() if excel_bytes else b'',
-            file_name="뉴스요약_맞춤형.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            disabled=not st.session_state.selected_articles,  # 선택된 기사가 없으면 비활성화
-            help="기사를 하나 이상 선택해야 다운로드가 가능합니다."
-        )
-        if not st.session_state.selected_articles:
-            st.info("엑셀 다운로드를 위해 기사를 하나 이상 선택하세요.")
+           # 개선: 버튼을 항상 노출, 데이터 없으면 비활성화
+           excel_bytes = None
+           if st.session_state.selected_articles:
+               excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
+                   st.session_state.selected_articles,
+                   favorite_categories,
+                   excel_company_categories
+               )
+           st.download_button(
+               label="📥 맞춤 엑셀 다운로드",
+               data=excel_bytes.getvalue() if excel_bytes else b'',
+               file_name="뉴스요약_맞춤형.xlsx",
+               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+               disabled=not st.session_state.selected_articles,  # 선택된 기사가 없으면 비활성화
+               help="기사를 하나 이상 선택해야 다운로드가 가능합니다."
+           )
+           if not st.session_state.selected_articles:
+               st.info("엑셀 다운로드를 위해 기사를 하나 이상 선택하세요.")
 
 # 날짜 변경 시 필터링
 def filter_articles_by_date():
