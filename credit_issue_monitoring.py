@@ -312,38 +312,38 @@ with col_kw_btn:
 
 # 2. 산업별 검색 (키워드 검색란 바로 아래, 대분류-기업-이슈 3단계)
 st.markdown("### 🏭 산업별 검색")
-col_major, col_company, col_issue, col_btn = st.columns([0.25, 0.25, 0.30, 0.20])
 
-with col_major:
-    selected_industry = st.selectbox(
-        "대분류(산업)",
-        list(industry_filter_categories.keys()),
-        key="industry_major"
-    )
+selected_majors = st.multiselect(
+    "대분류(산업)", 
+    list(industry_filter_categories.keys()), 
+    key="industry_majors"
+)
 
-# 해당 산업군의 기업/이슈 분리
-industry_companies = favorite_categories.get(selected_industry, [])
-industry_issues = [k for k in industry_filter_categories[selected_industry] if k not in industry_companies]
-
-with col_company:
-    # 대분류 선택 시 기업 자동 전체 선택
+# 각 대분류별로 기업/이슈 선택 박스 생성
+industry_inputs = []
+for idx, major in enumerate(selected_majors):
+    st.markdown(f"#### [{major}]")
+    companies = favorite_categories.get(major, [])
+    issues = [k for k in industry_filter_categories[major] if k not in companies]
     selected_companies = st.multiselect(
-        "기업",
-        industry_companies,
-        default=industry_companies,
-        key="industry_companies"
+        f"기업 ({major})", 
+        companies, 
+        default=companies, 
+        key=f"companies_{major}_{idx}"
     )
-
-with col_issue:
     selected_issues = st.multiselect(
-        "소분류(이슈)",
-        industry_issues,
-        default=industry_issues,
-        key="industry_issues"
+        f"소분류(이슈) ({major})", 
+        issues, 
+        default=issues, 
+        key=f"issues_{major}_{idx}"
     )
+    industry_inputs.append({
+        "industry": major,
+        "companies": selected_companies,
+        "issues": selected_issues
+    })
 
-with col_btn:
-    industry_search_clicked = st.button("검색", key="industry_search_btn", use_container_width=True)
+industry_search_clicked = st.button("검색", key="industry_search_btn", use_container_width=True)
 
 # 3. 날짜 위젯
 def on_date_change():
@@ -369,9 +369,12 @@ with date_col1:
 with st.expander("🧩 공통 필터 옵션 (필터별 적용/해제 가능)"):
     common_filter_active = {}
     for major, subs in common_filter_categories.items():
-        active = st.checkbox(f"{major} 필터 적용", value=True, key=f"common_filter_{major}")
+        col1, col2 = st.columns([0.13, 0.87])
+        with col1:
+            active = st.checkbox("", value=True, key=f"common_filter_{major}")
+        with col2:
+            st.markdown(f"**{major}**: {', '.join(subs)}")
         common_filter_active[major] = active
-        st.markdown(f"- {', '.join(subs)}")
 
 # 필터링 시 적용할 키워드만 모음
 active_common_keywords = []
@@ -819,11 +822,11 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     favorite_categories,
                     excel_company_categories
                 )
-                st.download_button(
-                    label="📥 맞춤 엑셀 다운로드",
-                    data=excel_bytes.getvalue(),
-                    file_name="뉴스요약_맞춤형.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            st.download_button(
+                label="📥 맞춤 엑셀 다운로드",
+                data=excel_bytes.getvalue(),
+                file_name="뉴스요약_맞춤형.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
 # 날짜 변경 시 필터링
