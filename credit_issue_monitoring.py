@@ -39,10 +39,11 @@ st.markdown("""
 
 # --- 제외 키워드 ---
 EXCLUDE_TITLE_KEYWORDS = [
-    "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구",
+    "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구", "우승", "무승부", "경기", "패배", "스포츠", "스폰서",
     "부고", "인사", "승진", "임명", "발령", "인사발령", "인사이동",
-    "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수",
-    "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가"
+    "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수", "지속가능", "ESG", "스타트업",
+    "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가",
+    "봉사", "후원", "기부", "혜택", "땡처리", "세일", "이벤트"
 ]
 
 def exclude_by_title_keywords(title, exclude_keywords):
@@ -92,56 +93,79 @@ favorite_categories = {
     "특수채": ["주택도시보증공사", "기업은행"]
 }
 
-excel_company_categories = {
-    "국/공채": [],
-    "공공기관": [],
+# ---- 대분류별 기업/이슈 분리 및 통합 ----
+# 1. 은행 및 금융지주
+industry_filter_categories = {}
+industry_filter_categories["은행 및 금융지주"] = [
+    "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
+    "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
+]
+favorite_categories["은행 및 금융지주"] = favorite_categories["5대금융지주"] + favorite_categories["5대시중은행"]
+
+# 2. 전기전자
+industry_filter_categories["전기전자"] = [
+    "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
+]
+favorite_categories["전기전자"] = favorite_categories["전기/전자"]
+
+# 3. 철강/비철 통합
+industry_filter_categories["철강/비철"] = [
+    # 철강 이슈
+    "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
+    "중국 수출 감소", "건설경기", "조선 수요", "파업",
+    # 비철 이슈
+    "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
+]
+favorite_categories["철강/비철"] = favorite_categories["비철/철강"]
+
+# 기존 "철강", "비철", "전기/전자", "5대금융지주", "5대시중은행", "비철/철강" 대분류는 industry_filter_categories에서 사용하지 않음
+# 나머지 대분류는 기존대로 추가
+industry_filter_categories.update({
     "보험사": [
-        "현대해상화재보험(후)", "농협생명보험(후)", "메리츠화재해상보험(후)", "교보생명(후)",
-        "삼성화재", "삼성생명", "신한라이프(후)", "흥국생명보험(후)", "동양생명보험(후)", "미래에셋생명(후)"
-    ],
-    "5대금융지주": [
-        "신한지주", "하나금융지주", "KB금융", "농협금융지주", "우리금융지주"
-    ],
-    "5대시중은행": [
-        "농협은행", "국민은행", "신한은행", "우리은행", "하나은행"
+        "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
+        "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
+        "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
     ],
     "카드사": [
-        "케이비카드", "현대카드", "신한카드", "비씨카드", "삼성카드"
+        "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
+        "건전성", "케이뱅크", "이탈"
     ],
     "캐피탈": [
-        "한국캐피탈", "현대캐피탈"
+        "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
+        "조정총자산수익률", "군인공제회"
     ],
     "지주사": [
-        "SK이노베이션", "지에스에너지", "SK", "GS"
+        "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
+        "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
     ],
     "에너지": [
-        "SK가스", "GS칼텍스", "S-Oil", "SK에너지", "에스케이엔무브", "코리아에너지터미널"
+        "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
+        "터미널", "윤활유"
     ],
     "발전": [
-        "GS파워", "지에스이피에스", "삼천리"
+        "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
+        "가동률", "도시가스"
     ],
     "자동차": [
-        "LG에너지솔루션", "한온시스템", "포스코퓨처엠", "한국타이어앤테크놀로지"
-    ],
-    "전기/전자": [
-        "SK하이닉스", "LG이노텍", "LG전자", "엘에스일렉트릭"
+        "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
     ],
     "소비재": [
-        "이마트", "LF", "CJ제일제당", "SK네트웍스", "CJ대한통운"
-    ],
-    "비철/철강": [
-        "포스코", "현대제철", "고려아연"
+        "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
+        "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
     ],
     "석유화학": [
-        "LG화학", "SK지오센트릭"
+        "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
+        "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
     ],
     "건설": [
-        "포스코이앤씨"
+        "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
+        "시공능력순위", "미분양", "대손충당금"
     ],
     "특수채": [
-        "주택도시보증공사", "기업은행"
+        "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
+        "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
     ]
-}
+})
 
 # --- 공통 필터 옵션(대분류/소분류 없이 모두 적용) ---
 common_filter_categories = {
@@ -277,7 +301,7 @@ with col_title:
 with col_option1:
     show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
 with col_option2:
-    enable_summary = st.checkbox("요약 기능 적용", value=True, key="enable_summary")
+    enable_summary = st.checkbox("요약 기능 적용", value=False, key="enable_summary")
 
 # 1. 키워드 입력/검색 버튼 (한 줄, 버튼 오른쪽)
 col_kw_input, col_kw_btn = st.columns([0.8, 0.2])
@@ -342,9 +366,18 @@ with date_col1:
     )
     
 # --- 공통 필터 옵션 (항상 적용, 전체 키워드 가시적으로 표시) ---
-with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
+with st.expander("🧩 공통 필터 옵션 (필터별 적용/해제 가능)"):
+    common_filter_active = {}
     for major, subs in common_filter_categories.items():
-        st.markdown(f"**{major}**: {', '.join(subs)}")
+        active = st.checkbox(f"{major} 필터 적용", value=True, key=f"common_filter_{major}")
+        common_filter_active[major] = active
+        st.markdown(f"- {', '.join(subs)}")
+
+# 필터링 시 적용할 키워드만 모음
+active_common_keywords = []
+for major, active in common_filter_active.items():
+    if active:
+        active_common_keywords.extend(common_filter_categories[major])
 
 # --- 키워드 필터 옵션 (하단으로 이동) ---
 with st.expander("🔍 키워드 필터 옵션"):
@@ -607,6 +640,9 @@ def article_passes_all_filters(article):
     industry_issues_filter = st.session_state.get("industry_issues", [])
     if industry_issues_filter:
         filters.append(industry_issues_filter)
+    # 활성화된 공통 필터만 적용
+    if active_common_keywords:
+        filters.append(active_common_keywords)
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
         return False
     if st.session_state.get("require_exact_keyword_in_title_or_content", False):
