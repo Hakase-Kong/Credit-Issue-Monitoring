@@ -10,6 +10,7 @@ from openai import OpenAI
 import newspaper
 import difflib
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -27,9 +28,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 중복 없는 기사별 고유 key 생성 함수 ---
+def make_unique_key(keyword, article_link):
+    link_hash = hashlib.md5(article_link.encode('utf-8')).hexdigest()
+    return f"{keyword}_{link_hash}"
+
 # --- 제외 키워드 ---
 EXCLUDE_TITLE_KEYWORDS = [
     "야구", "축구", "배구", "농구", "골프", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구", "우승", "무승부", "패배", "스포츠",
+    "부고", "인사", "승진", "임명", "발령", "인사발령", "인사이동",
+    "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수", "봉사", "후원", "기부", "ESG", "지속가능",
+    "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가",
+    "스타트업", "혜택", "땡처리", "이벤트", "세일"    
+]
+
+# --- 제외 키워드 ---
+EXCLUDE_TITLE_KEYWORDS = [
+    "야구", "축구", "배구", "농구", "골프", "탁구", "배드민턴", "e스포츠", "올림픽", "월드컵", "K리그", "프로야구", "프로축구", "프로배구", "프로농구", "우승", "무승부", "패배", "스포츠",
     "부고", "인사", "승진", "임명", "발령", "인사발령", "인사이동",
     "브랜드평판", "브랜드 평판", "브랜드 순위", "브랜드지수", "봉사", "후원", "기부", "ESG", "지속가능",
     "코스피", "코스닥", "주가", "주식", "증시", "시세", "마감", "장중", "장마감", "거래량", "거래대금", "상한가", "하한가",
@@ -699,8 +714,7 @@ def render_articles_with_single_summary_and_telegram(
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
-                        unique_id = re.sub(r'\W+', '', article['link'])[-16:]
-                        key = f"{keyword}_{unique_id}"
+                        key = make_unique_key(keyword, article['link'])
                         checked = st.checkbox(
                             "선택", value=st.session_state.article_checked.get(key, False), key=f"news_{key}"
                         )
@@ -731,8 +745,7 @@ def render_articles_with_single_summary_and_telegram(
                 articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
                 limit = st.session_state.show_limit.get(keyword, 5)
                 for idx, article in enumerate(articles[:limit]):
-                    unique_id = re.sub(r'\W+', '', article['link'])[-16:]
-                    key = f"{keyword}_{unique_id}"
+                    key = make_unique_key(keyword, article['link'])
                     cache_key = f"summary_{key}"
                     if st.session_state.article_checked.get(key, False):
                         if cache_key in st.session_state:
