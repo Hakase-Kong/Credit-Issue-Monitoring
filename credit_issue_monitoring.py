@@ -71,7 +71,7 @@ if "end_date" not in st.session_state:
 if "start_date" not in st.session_state:
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
     
-# --- 즐겨찾기 카테고리(변경 금지) ---
+# --- 즐겨찾기 카테고리(변경 금지, UI 미노출) ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -171,66 +171,66 @@ ALL_COMMON_FILTER_KEYWORDS = []
 for keywords in common_filter_categories.values():
     ALL_COMMON_FILTER_KEYWORDS.extend(keywords)
 
-# --- 산업별 필터 옵션 ---
+# --- 산업별 필터 옵션 + 즐겨찾기 기업명 포함 ---
 industry_filter_categories = {
     "은행 및 금융지주": [
         "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
         "조달금리", "NIM", "순이자마진", "고정이하여신비율", "대손충당금", "충당금", "부실채권", "연체율", "가계대출", "취약차주"
-    ],
+    ] + favorite_categories["5대금융지주"] + favorite_categories["5대시중은행"],
     "보험사": [
         "보장성보험", "저축성보험", "변액보험", "퇴직연금", "일반보험", "자동차보험", "ALM", "지급여력비율", "K-ICS",
         "보험수익성", "보험손익", "수입보험료", "CSM", "상각", "투자손익", "운용성과", "IFRS4", "IFRS17", "보험부채",
         "장기선도금리", "최종관찰만기", "유동성 프리미엄", "신종자본증권", "후순위채", "위험자산비중", "가중부실자산비율"
-    ],
+    ] + favorite_categories["보험사"],
     "카드사": [
         "민간소비지표", "대손준비금", "가계부채", "연체율", "가맹점카드수수료", "대출성자산", "신용판매자산", "고정이하여신", "레버리지배율",
         "건전성", "케이뱅크", "이탈"
-    ],
+    ] + favorite_categories["카드사"],
     "캐피탈": [
         "충당금커버리지비율", "고정이하여신", "PF구조조정", "리스자산", "손실흡수능력", "부동산PF연체채권", "자산포트폴리오", "건전성",
         "조정총자산수익률", "군인공제회"
-    ],
+    ] + favorite_categories["캐피탈"],
     "지주사": [
         "SK지오센트릭", "SK에너지", "SK엔무브", "SK인천석유화학", "GS칼텍스", "GS파워", "SK이노베이션", "SK텔레콤", "SK온",
         "GS에너지", "GS리테일", "GS E&C", "2차전지", "석유화학", "윤활유", "전기차", "배터리", "정유", "이동통신"
-    ],
+    ] + favorite_categories["지주사"],
     "에너지": [
         "정유", "유가", "정제마진", "스프레드", "가동률", "재고 손실", "중국 수요", "IMO 규제", "저유황 연료", "LNG",
         "터미널", "윤활유"
-    ],
+    ] + favorite_categories["에너지"],
     "발전": [
         "LNG", "천연가스", "유가", "SMP", "REC", "계통시장", "탄소세", "탄소배출권", "전력시장 개편", "전력 자율화",
         "가동률", "도시가스"
-    ],
+    ] + favorite_categories["발전"],
     "자동차": [
         "AMPC 보조금", "IRA 인센티브", "중국 배터리", "EV 수요", "전기차", "ESS수요", "리튬", "타이어"
-    ],
+    ] + favorite_categories["자동차"],
     "전기전자": [
         "CHIPS 보조금", "중국", "DRAM", "HBM", "광할솔루션", "아이폰", "HVAC", "HVTR"
-    ],
+    ] + favorite_categories["전기/전자"],
     "철강": [
         "철광석", "후판", "강판", "철근", "스프레드", "철강", "가동률", "제철소", "셧다운", "중국산 저가",
         "중국 수출 감소", "건설경기", "조선 수요", "파업"
-    ],
+    ] + favorite_categories["비철/철강"],
     "비철": [
         "연", "아연", "니켈", "안티모니", "경영권 분쟁", "MBK", "영풍"
     ],
-    "소매": [
+    "소비재": [
         "내수부진", "시장지배력", "SK텔레콤", "SK매직", "CLS", "HMR", "라이신", "아미노산", "슈완스컴퍼니",
         "의류", "신세계", "대형마트 의무휴업", "G마켓", "W컨셉", "스타필드"
-    ],
+    ] + favorite_categories["소비재"],
     "석유화학": [
         "석유화학", "석화", "유가", "증설", "스프레드", "가동률", "PX", "벤젠", "중국 증설", "중동 COTC",
         "LG에너지솔루션", "전기차", "배터리", "리튬", "IRA", "AMPC"
-    ],
+    ] + favorite_categories["석유화학"],
     "건설": [
         "철근 가격", "시멘트 가격", "공사비", "SOC 예산", "도시정비 지원", "우발채무", "수주", "주간사", "사고",
         "시공능력순위", "미분양", "대손충당금"
-    ],
+    ] + favorite_categories["건설"],
     "특수채": [
         "자본확충", "HUG", "전세사기", "보증사고", "보증료율", "회수율", "보증잔액", "대위변제액",
         "중소기업대출", "대손충당금", "부실채권", "불법", "구속"
-    ]
+    ] + favorite_categories["특수채"]
 }
 
 KOREAN_STOPWORDS = {
@@ -286,16 +286,7 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-# 2. 즐겨찾기 카테고리 선택/검색 버튼 (한 줄, 버튼 오른쪽)
-st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
-col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
-with col_cat_input:
-    selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
-with col_cat_btn:
-    category_search_clicked = st.button("🔍 검색", key="cat_search_btn", help="카테고리로 검색", use_container_width=True)
-for cat in selected_categories:
-    st.session_state.favorite_keywords.update(favorite_categories[cat])
-
+# --- 즐겨찾기 카테고리 선택/검색 UI 제거 (코드에는 유지, 화면에는 미노출) ---
 
 # 2. 위젯 생성 (value와 key만 사용, session_state 직접 할당 금지)
 def on_date_change():
@@ -322,7 +313,7 @@ with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
     for major, subs in common_filter_categories.items():
         st.markdown(f"**{major}**: {', '.join(subs)}")
 
-# --- 산업별 필터 옵션 ---
+# --- 산업별 필터 옵션 (이슈+기업명, 별도 검색버튼) ---
 with st.expander("🏭 산업별 필터 옵션"):
     use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
@@ -338,11 +329,12 @@ with st.expander("🏭 산업별 필터 옵션"):
             sub_options.extend(industry_filter_categories.get(major, []))
         sub_options = sorted(set(sub_options))
         selected_sub = st.multiselect(
-            "소분류(필터 키워드)",
+            "소분류(이슈/기업명)",
             sub_options,
-            default=sub_options,
             key="industry_sub"
         )
+    # 별도의 검색 버튼
+    industry_search_clicked = st.button("산업별 필터로 검색", key="industry_search_btn")
 
 # --- 키워드 필터 옵션 (하단으로 이동) ---
 with st.expander("🔍 키워드 필터 옵션"):
@@ -380,25 +372,25 @@ def summarize_and_sentiment_with_openai_cached(text, title=None, do_summary=True
     title = title or ""
     if lang == "ko":
         prompt = (
-            f"아래 기사 제목, 본문, 그리고 검색 키워드 '{keyword}'를 참고해, 반드시 한 줄 요약에 '{keyword}'가 포함되도록 해줘. "
+            f"아래 기사 제목, 본문, 그리고 검색 키워드 '{title}'를 참고해, 반드시 한 줄 요약에 '{title}'가 포함되도록 해줘. "
             "만약 키워드와 관련 없는 기사라면 '키워드와 관련된 내용이 기사에 없음'이라고 답해줘.\n"
             "- [한 줄 요약]: 기사 제목, 본문, 키워드를 바탕으로, 반드시 키워드가 포함된 한 문장으로 요약\n"
             "- [감성]: 기사 전체의 감정을 긍정/부정 중 하나로만 답해줘. 중립은 절대 답하지 마. 파산, 자금난 등 부정적 사건이 중심이면 반드시 '부정'으로 답해줘.\n\n"
             "아래 포맷으로 답변해줘:\n"
             "[한 줄 요약]: (여기에 한 줄 요약)\n"
             "[감성]: (긍정/부정 중 하나만)\n\n"
-            f"[검색 키워드]\n{keyword}\n[기사 제목]\n{title}\n[기사 본문]\n{text}"
+            f"[검색 키워드]\n{title}\n[기사 제목]\n{title}\n[기사 본문]\n{text}"
         )
     else:
         prompt = (
-        f"Summarize the following article in one sentence, and make sure the summary includes the keyword '{keyword}'. "
+        f"Summarize the following article in one sentence, and make sure the summary includes the keyword '{title}'. "
         "If the keyword is not relevant to the article, answer: 'No content related to the keyword.'\n"
         "- [One-line Summary]: Summarize with the keyword included.\n"
         "- [Sentiment]: positive or negative only.\n\n"
         "Respond in this format:\n"
         "[One-line Summary]: (your one-line summary)\n"
         "[Sentiment]: (positive/negative only)\n\n"
-        f"[KEYWORD]\n{keyword}\n[TITLE]\n{title}\n[ARTICLE]\n{text}"
+        f"[KEYWORD]\n{title}\n[TITLE]\n{title}\n[ARTICLE]\n{text}"
         )
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -430,7 +422,7 @@ def summarize_article_from_url(article_url, title, do_summary=True):
         full_text = extract_article_text_cached(article_url)
         if full_text.startswith("본문 추출 오류"):
             return full_text, None, None, None
-        one_line, summary, sentiment, _ = summarize_and_sentiment_with_openai_cached(full_text, do_summary=do_summary)
+        one_line, summary, sentiment, _ = summarize_and_sentiment_with_openai_cached(full_text, title=title, do_summary=do_summary)
         return one_line, summary, sentiment, full_text
     except Exception as e:
         return f"요약 오류: {e}", None, None, None
@@ -587,13 +579,11 @@ if search_clicked or st.session_state.get("search_triggered"):
             process_keywords(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
     st.session_state.search_triggered = False
 
-if category_search_clicked and selected_categories:
+# 산업별 필터로 검색 버튼 동작
+if industry_search_clicked and selected_sub:
     with st.spinner("뉴스 검색 중..."):
-        keywords = set()
-        for cat in selected_categories:
-            keywords.update(favorite_categories[cat])
         process_keywords(
-            sorted(keywords),
+            selected_sub,
             st.session_state["start_date"],
             st.session_state["end_date"],
             require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
@@ -610,9 +600,7 @@ def article_passes_all_filters(article):
         all_keywords = []
         if keywords_input:
             all_keywords.extend([k.strip() for k in keywords_input.split(",") if k.strip()])
-        if selected_categories:
-            for cat in selected_categories:
-                all_keywords.extend(favorite_categories[cat])
+        # 즐겨찾기 카테고리 UI는 제거되었으므로 selected_categories 사용하지 않음
         if not article_contains_exact_keyword(article, all_keywords):
             return False
     return or_keyword_filter(article, *filters)
