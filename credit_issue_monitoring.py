@@ -763,7 +763,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                         st.session_state.show_limit[keyword] += 10
                         st.rerun()
 
-    with col_summary:
+   with col_summary:
     st.markdown("### 선택된 기사 요약/감성분석")
     with st.container(border=True):
         selected_articles = []
@@ -796,7 +796,20 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                         "날짜": article['date'],
                         "출처": article['source']
                     })
-                    # ... (중략) ...
+                    # 감성 배지 표시
+                    if show_sentiment_badge:
+                        st.markdown(
+                            f"#### [{article['title']}]({article['link']}) "
+                            f"<span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
+                    st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
+                    if enable_summary:
+                        st.markdown(f"- **한 줄 요약:** {one_line}")
+                    st.markdown(f"- **감성분석:** `{sentiment}`")
+                    st.markdown("---")
         st.session_state.selected_articles = selected_articles
         st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
@@ -817,8 +830,11 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
             data=excel_bytes.getvalue() if excel_bytes else b'',
             file_name="뉴스요약_맞춤형.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            disabled=not st.session_state.selected_articles  # 선택된 기사가 없으면 비활성화
+            disabled=not st.session_state.selected_articles,  # 선택된 기사가 없으면 비활성화
+            help="기사를 하나 이상 선택해야 다운로드가 가능합니다."
         )
+        if not st.session_state.selected_articles:
+            st.info("엑셀 다운로드를 위해 기사를 하나 이상 선택하세요.")
 
 # 날짜 변경 시 필터링
 def filter_articles_by_date():
