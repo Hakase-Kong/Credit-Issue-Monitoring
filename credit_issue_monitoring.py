@@ -254,10 +254,10 @@ def remove_duplicate_articles_by_title_and_keywords(articles, title_threshold=0.
 # 날짜 기본값: 종료일은 오늘, 시작일은 종료일 1주일 전
 today = date.today()
 if "end_date" not in st.session_state:
-    st.session_state["end_date"] = today
+    st.session_state["end_date"] = date.today()
 if "start_date" not in st.session_state:
     st.session_state["start_date"] = st.session_state["end_date"] - timedelta(days=7)
-
+    
 # UI 시작
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
