@@ -1,4 +1,4 @@
-import os
+import osimport os
 import streamlit as st
 import pandas as pd
 from io import BytesIO
@@ -23,6 +23,7 @@ st.markdown("""
 .flex-row-bottom { display: flex; align-items: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; }
 .flex-grow { flex: 1 1 0%; }
 .flex-btn { min-width: 90px; }
+.st-checkbox label { margin-right: 0.1rem !important; margin-left: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -150,9 +151,26 @@ common_filter_categories = {
         "횡령", "배임", "공정거래", "오너리스크", "대주주", "지배구조"
     ]
 }
-ALL_COMMON_FILTER_KEYWORDS = []
-for keywords in common_filter_categories.values():
-    ALL_COMMON_FILTER_KEYWORDS.extend(keywords)
+
+# --- 공통 필터 체크박스 UI 함수 ---
+def render_common_filter_checkboxes(common_filter_categories):
+    selected_filters = {}
+    for major, subs in common_filter_categories.items():
+        st.markdown(f"**{major}**", unsafe_allow_html=True)
+        cols = st.columns(len(subs))
+        selected_filters[major] = []
+        for i, sub in enumerate(subs):
+            with cols[i]:
+                checked = st.checkbox(
+                    label=sub,
+                    key=f"common_filter_{major}_{sub}",
+                    value=True,  # 기본값: 모두 선택
+                    help=None,
+                    label_visibility="visible"
+                )
+                if checked:
+                    selected_filters[major].append(sub)
+    return selected_filters
 
 # --- 산업별 필터 옵션 ---
 industry_filter_categories = {
@@ -221,8 +239,19 @@ def get_industry_majors_from_favorites(selected_categories):
     favorite_to_industry_major = {
         "5대금융지주": ["은행 및 금융지주"],
         "5대시중은행": ["은행 및 금융지주"],
+        "보험사": ["보험사"],
+        "카드사": ["카드사"],
+        "캐피탈": ["캐피탈"],
+        "지주사": ["지주사"],
+        "에너지": ["에너지"],
+        "발전": ["발전"],
+        "자동차": ["자동차"],
+        "석유화학": ["석유화학"],
+        "전기/전자": ["전기전자"],
         "비철/철강": ["철강", "비철"],
         "소비재": ["소매"],
+        "건설": ["건설"],
+        "특수채": ["특수채"],
         # 필요시 추가 매핑
     }
     majors = set()
@@ -247,7 +276,7 @@ with col_kw_input:
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
+st.markdown("**⭐ 섹터 선택**")
 col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
 with col_cat_input:
     selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
@@ -263,14 +292,12 @@ with date_col2:
     end_date = st.date_input("종료일")
 
 with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
-    for major, subs in common_filter_categories.items():
-        st.markdown(f"**{major}**: {', '.join(subs)}")
+    selected_common_filters = render_common_filter_checkboxes(common_filter_categories)
 
 with st.expander("🏭 산업별 필터 옵션"):
-    use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
+    use_industry_filter = st.checkbox("이 필터 적용", value=True, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
     with col_major:
-        # 자동 선택될 대분류 리스트 만들기
         industry_majors_default = get_industry_majors_from_favorites(selected_categories)
         selected_majors = st.multiselect(
             "대분류(산업)",
@@ -293,6 +320,32 @@ with st.expander("🏭 산업별 필터 옵션"):
 with st.expander("🔍 키워드 필터 옵션"):
     require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=False, key="require_keyword_in_title")
     require_exact_keyword_in_title_or_content = st.checkbox("키워드가 온전히 제목 또는 본문에 포함된 기사만 보기", value=False, key="require_exact_keyword_in_title_or_content")
+
+# 이하 함수 정의 및 본문(뉴스 수집, 요약, 필터, 카드형 결과 등)은 이전 답변과 동일하게 사용하시면 됩니다.
+# 단, 기사 필터링 함수에서 ALL_COMMON_FILTER_KEYWORDS 대신 아래처럼 사용하세요:
+
+def article_passes_all_filters(article):
+    # 공통 필터: 선택된 세부 필터만 적용
+    filters = []
+    # flatten selected_common_filters
+    selected_common_keywords = []
+    for v in selected_common_filters.values():
+        selected_common_keywords.extend(v)
+    filters.append(selected_common_keywords)
+    if st.session_state.get("use_industry_filter", False):
+        filters.append(st.session_state.get("industry_sub", []))
+    if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
+        return False
+    if st.session_state.get("require_exact_keyword_in_title_or_content", False):
+        all_keywords = []
+        if keywords_input:
+            all_keywords.extend([k.strip() for k in keywords_input.split(",") if k.strip()])
+        if selected_categories:
+            for cat in selected_categories:
+                all_keywords.extend(favorite_categories[cat])
+        if not article_contains_exact_keyword(article, all_keywords):
+            return False
+    return or_keyword_filter(article, *filters)
 
 # --- 본문 추출 함수 ---
 def extract_article_text(url):
@@ -536,8 +589,13 @@ def article_contains_exact_keyword(article, keywords):
 
 # --- 기사 필터링 함수 ---
 def article_passes_all_filters(article):
+    # 공통 필터: 선택된 세부 필터만 적용
     filters = []
-    filters.append(ALL_COMMON_FILTER_KEYWORDS)
+    # flatten selected_common_filters
+    selected_common_keywords = []
+    for v in selected_common_filters.values():
+        selected_common_keywords.extend(v)
+    filters.append(selected_common_keywords)
     if st.session_state.get("use_industry_filter", False):
         filters.append(st.session_state.get("industry_sub", []))
     if exclude_by_title_keywords(article.get('title', ''), EXCLUDE_TITLE_KEYWORDS):
@@ -660,7 +718,7 @@ def render_articles_with_single_summary_and_telegram(
             if limit < len(articles):
                 if st.button("더보기", key=f"more_{keyword}"):
                     st.session_state.show_limit[keyword] += 10
-                    st.experimental_rerun()
+                    st.rerun()
 
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
