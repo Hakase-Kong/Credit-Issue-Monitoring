@@ -683,6 +683,8 @@ def render_articles_with_single_summary_and_telegram(
 
     col_list, col_summary = st.columns([1, 1])
 
+    article_global_idx = 0  # 전역 인덱스
+
     with col_list:
         st.markdown("### 검색 결과")
         for keyword, articles in results.items():
@@ -701,8 +703,8 @@ def render_articles_with_single_summary_and_telegram(
                             article.get('date', '')
                         )
 
-                        # 🔧 인덱스를 붙여 고유 key 생성
-                        checkbox_key = f"news_{key}_{idx}"
+                        # 전역 인덱스를 붙여 완전히 유일한 key 생성
+                        checkbox_key = f"news_{key}_{idx}_{article_global_idx}"
 
                         checked = st.checkbox(
                             "선택",
@@ -726,6 +728,7 @@ def render_articles_with_single_summary_and_telegram(
                                     f"<span class='sentiment-badge {sentiment_class}'>({sentiment})</span>",
                                     unsafe_allow_html=True
                                 )
+                        article_global_idx += 1  # 전역 인덱스 증가
 
 # --- 검색 트리거 ---
 search_clicked = False
