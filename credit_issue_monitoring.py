@@ -677,6 +677,7 @@ def render_articles_with_single_summary_and_telegram(
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
+
     if "article_checked" not in st.session_state:
         st.session_state.article_checked = {}
 
@@ -685,10 +686,10 @@ def render_articles_with_single_summary_and_telegram(
     with col_list:
         st.markdown("### 검색 결과")
         for keyword, articles in results.items():
-            # 중복 제거는 이미 검색 시점에 했으므로 여기서는 하지 않음
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
             card_cols = st.columns(2)
+
             for idx, article in enumerate(articles[:limit]):
                 col = card_cols[idx % 2]
                 with col:
@@ -699,14 +700,23 @@ def render_articles_with_single_summary_and_telegram(
                             article.get('title', ''),
                             article.get('date', '')
                         )
+
+                        # 🔧 인덱스를 붙여 고유 key 생성
+                        checkbox_key = f"news_{key}_{idx}"
+
                         checked = st.checkbox(
-                            "선택", value=st.session_state.article_checked.get(key, False), key=f"news_{key}"
+                            "선택",
+                            value=st.session_state.article_checked.get(checkbox_key, False),
+                            key=checkbox_key
                         )
-                        st.session_state.article_checked[key] = checked
+                        st.session_state.article_checked[checkbox_key] = checked
+
                         st.markdown(
-                            f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
+                            f"**[{article['title']}]({article['link']})**",
+                            unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
+
                         cache_key = f"summary_{key}"
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
