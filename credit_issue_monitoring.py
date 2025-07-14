@@ -523,32 +523,6 @@ def fetch_gnews_news(query, start_date=None, end_date=None, limit=100, require_k
 def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
-def remove_duplicate_articles_by_title(articles, threshold=0.75):
-    unique_articles = []
-    titles = []
-    for article in articles:
-        title = article.get("title", "")
-        is_duplicate = False
-        for existing_title in titles:
-            similarity = difflib.SequenceMatcher(None, title, existing_title).ratio()
-            if similarity >= threshold:
-                is_duplicate = True
-                break
-        if not is_duplicate:
-            unique_articles.append(article)
-            titles.append(title)
-    return unique_articles
-
-def remove_duplicate_articles_by_link(articles):
-    seen = set()
-    unique_articles = []
-    for article in articles:
-        link = article.get("link", "")
-        if link not in seen:
-            seen.add(link)
-            unique_articles.append(article)
-    return unique_articles
-
 # --- 병렬 뉴스 수집 및 카드형 결과 기본 출력 ---
 def process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=False):
     progress_placeholder = st.empty()
@@ -559,8 +533,6 @@ def process_keywords_parallel(keyword_list, start_date, end_date, require_keywor
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
-        articles = remove_duplicate_articles_by_link(articles)  # 반드시 추가!
         return k, articles
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(fetch_for_keyword, k): k for k in keyword_list}
