@@ -248,21 +248,21 @@ with col_title:
 with col_option1:
     show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
 with col_option2:
-    enable_summary = st.checkbox("요약 기능 적용", value=True, key="enable_summary")
+    enable_summary = st.checkbox("요약 기능 적용", value=False, key="enable_summary")
 
 col_kw_input, col_kw_btn = st.columns([0.8, 0.2])
 with col_kw_input:
-    keywords_input = st.text_input("키워드 (예: 삼성, 한화)", value="", key="keyword_input", label_visibility="visible")
+    keywords_input = st.text_input("키워드 입력", value="", key="keyword_input", label_visibility="visible")
 with col_kw_btn:
     search_clicked = st.button("검색", key="search_btn", help="키워드로 검색", use_container_width=True)
 
-st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
+st.markdown("**⭐ 산업군 선택**")
 col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
 with col_cat_input:
     selected_categories = st.multiselect(
-        "카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.",
+        "카테고리 선택",
         list(favorite_categories.keys()), key="cat_multi"
-    )
+        )
 if selected_categories:
     auto_selected_majors = get_industry_majors_from_favorites(selected_categories)
     st.session_state.cat_major_autoset = auto_selected_majors.copy()
@@ -438,55 +438,13 @@ def fetch_naver_news(query, start_date=None, end_date=None, limit=1000, require_
             break
     return articles[:limit]
 
-def fetch_gnews_news(query, start_date=None, end_date=None, limit=100, require_keyword_in_title=False):
-    GNEWS_API_KEY = "b8c6d82bbdee9b61d2b9605f44ca8540"
-    articles = []
-    try:
-        url = f"https://gnews.io/api/v4/search"
-        params = {
-            "q": query,
-            "lang": "en",
-            "token": GNEWS_API_KEY,
-            "max": limit
-        }
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            st.warning(f"❌ GNews 요청 실패 - 상태 코드: {response.status_code}")
-            return []
-        data = response.json()
-        for item in data.get("articles", []):
-            title = item.get("title", "")
-            desc = item.get("description", "")
-            if not filter_by_issues(title, desc, [query], require_keyword_in_title):
-                continue
-            if exclude_by_title_keywords(title, EXCLUDE_TITLE_KEYWORDS):
-                continue
-            pub_date = datetime.strptime(item["publishedAt"][:10], "%Y-%m-%d").date()
-            articles.append({
-                "title": title,
-                "link": item.get("url", ""),
-                "date": pub_date.strftime("%Y-%m-%d"),
-                "source": "GNews"
-            })
-    except Exception as e:
-        st.warning(f"⚠️ GNews 접근 오류: {e}")
-    return articles
-
-def is_english(text):
-    return all(ord(c) < 128 for c in text if c.isalpha())
 
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
     for k in keyword_list:
-        if is_english(k):
-            articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        else:
-            articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
+        articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         st.session_state.search_results[k] = articles
         if k not in st.session_state.show_limit:
             st.session_state.show_limit[k] = 5
-
-def detect_lang_from_title(title):
-    return "ko" if re.search(r"[가-힣]", title) else "en"
 
 def summarize_article_from_url(article_url, title, do_summary=True):
     try:
