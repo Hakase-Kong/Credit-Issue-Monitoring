@@ -314,7 +314,7 @@ with st.expander("🏭 산업별 필터 옵션"):
         )
 
 with st.expander("🔍 키워드 필터 옵션"):
-    require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=False, key="require_keyword_in_title", on_change=st.rerun)
+    require_keyword_in_title = st.checkbox("기사 제목에 키워드가 포함된 경우만 보기", value=False, key="require_keyword_in_title")
     require_exact_keyword_in_title_or_content = st.checkbox("키워드가 온전히 제목 또는 본문에 포함된 기사만 보기", value=False, key="require_exact_keyword_in_title_or_content")
 
 def extract_article_text(url):
@@ -661,7 +661,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                 if limit < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         st.session_state.show_limit[keyword] += 10
-                        st.rerun()
 
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
