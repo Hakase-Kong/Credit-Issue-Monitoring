@@ -673,6 +673,8 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
+    import hashlib
+
     SENTIMENT_CLASS = {
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
@@ -687,6 +689,7 @@ def render_articles_with_single_summary_and_telegram(
     col_list, col_summary = st.columns([1, 1])
     article_global_idx = 0
 
+    # --- 왼쪽: 기사 목록 카드 ---
     with col_list:
         st.markdown("### 검색 결과")
         for keyword, articles in results.items():
@@ -698,9 +701,13 @@ def render_articles_with_single_summary_and_telegram(
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
-                        key = f"{keyword}_{idx}_{article_global_idx}"
+                        # ✅ 기사별 고유 키 생성 (링크 해시 포함)
+                        link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
+                        key = f"{keyword}_{idx}_{link_hash}"
                         checkbox_key = f"news_{key}"
+                        cache_key = f"summary_{key}"
 
+                        # 체크박스
                         checked = st.checkbox(
                             "선택",
                             value=st.session_state.article_checked.get(checkbox_key, False),
@@ -708,13 +715,14 @@ def render_articles_with_single_summary_and_telegram(
                         )
                         st.session_state.article_checked[checkbox_key] = checked
 
+                        # 기사 정보
                         st.markdown(
                             f"**[{article['title']}]({article['link']})**",
                             unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
 
-                        cache_key = f"summary_{key}"
+                        # 감성 배지
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -725,10 +733,72 @@ def render_articles_with_single_summary_and_telegram(
                                 )
                         article_global_idx += 1
 
+            # 더보기 버튼
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
+
+    # --- 오른쪽: 선택된 기사 요약 카드 ---
+    with col_summary:
+        st.markdown("### 선택된 기사 요약/감성분석")
+        selected_articles = []
+
+        for keyword, articles in results.items():
+            limit = st.session_state.show_limit.get(keyword, 5)
+            for idx, article in enumerate(articles[:limit]):
+                link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
+                key = f"{keyword}_{idx}_{link_hash}"
+                checkbox_key = f"news_{key}"
+                cache_key = f"summary_{key}"
+
+                if st.session_state.article_checked.get(checkbox_key, False):
+                    # 요약/감성 캐싱
+                    if cache_key not in st.session_state:
+                        one_line, summary, sentiment, full_text = summarize_article_from_url(
+                            article['link'], article['title'], do_summary=enable_summary
+                        )
+                        st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
+                    else:
+                        one_line, summary, sentiment, full_text = st.session_state[cache_key]
+
+                    # 선택 기사 목록에 추가
+                    selected_articles.append({
+                        "키워드": keyword,
+                        "기사제목": article.get("title", ""),
+                        "날짜": article.get("date", ""),
+                        "링크": article.get("link", ""),
+                        "한줄요약": one_line,
+                        "감성": sentiment
+                    })
+
+                    # 카드형 요약 출력
+                    with st.container(border=True):
+                        st.markdown(
+                            f"**[{article['title']}]({article['link']})**",
+                            unsafe_allow_html=True
+                        )
+                        st.markdown(f"- 날짜/출처: {article['date']} | {article['source']}")
+                        st.markdown(f"- 한 줄 요약: {one_line}")
+                        st.markdown(
+                            f"- 감성분석: <span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
+                            unsafe_allow_html=True
+                        )
+
+        st.session_state.selected_articles = selected_articles
+        st.write(f"선택된 기사 개수: {len(selected_articles)}")
+
+        # 엑셀 다운로드 버튼
+        if selected_articles:
+            excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
+                selected_articles, favorite_categories, excel_company_categories
+            )
+            st.download_button(
+                label="엑셀 다운로드 (선택 기사 요약)",
+                data=excel_bytes,
+                file_name="news_summary.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
     # --- 선택된 기사 카드형 요약/감성분석 ---
     with col_summary:
