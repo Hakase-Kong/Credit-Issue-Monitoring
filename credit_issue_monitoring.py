@@ -610,30 +610,30 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
+
     if "article_checked" not in st.session_state:
         st.session_state.article_checked = {}
 
     col_list, col_summary = st.columns([1, 1])
+
     with col_list:
         st.markdown("### 기사 요약 결과")
+
         for keyword, articles in results.items():
             with st.container(border=True):
+                # 🔧 limit은 if 관계없이 항상 정의
                 if keyword not in st.session_state.show_limit:
                     st.session_state.show_limit[keyword] = 5
-                    limit = st.session_state.show_limit[keyword]
-                    articles = [a for a in articles if article_passes_all_filters(a)]
-                    for idx, article in enumerate(articles[:limit]):
+                limit = st.session_state.show_limit[keyword]
 
-                # ✅ 날짜 필터 적용
-                articles = [
-                    a for a in articles
-                    if article_passes_all_filters(a)
-                ]
+                # ✅ 필터 적용
+                articles = [a for a in articles if article_passes_all_filters(a)]
 
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
                     key = f"{keyword}_{idx}_{unique_id}"
                     cache_key = f"summary_{key}"
+
                     if show_sentiment_badge:
                         if cache_key not in st.session_state:
                             one_line, summary, sentiment, full_text = summarize_article_from_url(
@@ -642,6 +642,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                             st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
                         else:
                             one_line, summary, sentiment, full_text = st.session_state[cache_key]
+
                         sentiment_label = sentiment if sentiment else "분석중"
                         sentiment_class = SENTIMENT_CLASS.get(sentiment_label, "sentiment-negative")
                         md_line = (
@@ -654,6 +655,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                             f"[{article['title']}]({article['link']}) "
                             f"{article['date']} | {article['source']}"
                         )
+
                     cols = st.columns([0.04, 0.96])
                     with cols[0]:
                         checked = st.checkbox("", value=st.session_state.article_checked.get(key, False), key=f"news_{key}")
@@ -665,23 +667,23 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     if st.button("더보기", key=f"more_{keyword}"):
                         st.session_state.show_limit[keyword] += 10
 
+    # 🪄 선택된 기사 요약 영역
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
+
         with st.container(border=True):
             selected_articles = []
+
             for keyword, articles in results.items():
                 limit = st.session_state.show_limit.get(keyword, 5)
-
-                # ✅ 날짜 필터 적용
-                articles = [
-                    a for a in articles
-                    if article_passes_all_filters(a)
-                ]
+                # ✅ 동일 날짜 필터 적용
+                articles = [a for a in articles if article_passes_all_filters(a)]
 
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
                     key = f"{keyword}_{idx}_{unique_id}"
                     cache_key = f"summary_{key}"
+
                     if st.session_state.article_checked.get(key, False):
                         if cache_key in st.session_state:
                             one_line, summary, sentiment, full_text = st.session_state[cache_key]
@@ -690,16 +692,18 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                                 article['link'], article['title'], do_summary=enable_summary
                             )
                             st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
+
                         selected_articles.append({
                             "키워드": keyword,
                             "기사제목": safe_title(article.get('title')),
                             "요약": one_line,
-                            "요약본": summary,
+                            "요약본": summary,  # 예비 확장
                             "감성": sentiment,
                             "링크": article['link'],
                             "날짜": article['date'],
                             "출처": article['source']
                         })
+
                         if show_sentiment_badge:
                             st.markdown(
                                 f"#### [{article['title']}]({article['link']}) "
@@ -708,17 +712,19 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                             )
                         else:
                             st.markdown(f"#### [{article['title']}]({article['link']})", unsafe_allow_html=True)
+
                         st.markdown(f"- **날짜/출처:** {article['date']} | {article['source']}")
                         if enable_summary:
                             st.markdown(f"- **한 줄 요약:** {one_line}")
                         st.markdown(f"- **감성분석:** `{sentiment}`")
                         st.markdown("---")
+
             st.session_state.selected_articles = selected_articles
             st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
-            if st.session_state.selected_articles:
+            if selected_articles:
                 excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
-                    st.session_state.selected_articles,
+                    selected_articles,
                     favorite_categories,
                     excel_company_categories
                 )
