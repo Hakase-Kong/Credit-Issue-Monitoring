@@ -645,7 +645,7 @@ def render_articles_with_single_summary_and_telegram(
 
     with col_list:
         st.markdown("### 검색 결과")
-        for keyword, articles in results.items():
+        for keyword_idx, (keyword, articles) in enumerate(results.items()):
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
             card_cols = st.columns(2)
@@ -696,13 +696,13 @@ def render_articles_with_single_summary_and_telegram(
 
                         article_global_idx += 1
 
-            # 더보기 버튼
+            # 더보기 버튼 (중복 키 방지용으로 keyword_idx 추가)
             if limit < len(articles):
-                if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
+                btn_key = f"show_more_{keyword}_{keyword_idx}"
+                if st.button(f"더보기 ({keyword})", key=btn_key):
                     st.session_state.show_limit[keyword] = limit + 5
-                    # ✅ rerun만 호출, 검색 결과는 유지됨
                     st.rerun()
-        
+
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
