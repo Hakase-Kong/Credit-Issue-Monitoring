@@ -674,10 +674,10 @@ def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
     """
-    카드형 뉴스/요약/감성분석 UI를 안정적으로 렌더링하는 Streamlit 함수.
-    - results는 반드시 {keyword: articles} 중복 없는 구조여야 하며,
-    - 더보기, 체크박스 key는 keyword(string) 및 기사 링크 기반 해시만 사용합니다.
-    - 검색/필터/날짜 변경 때, show_limit과 article_checked의 상태 초기화를 외부에서 철저히 관리해야 합니다!
+    카드형 뉴스 요약/감성분석을 안정적으로 렌더링합니다.
+    - results는 {keyword: articles} 구조여야 하며 keyword는 중복되지 않아야 합니다.
+    - 기사 리스트는 최신순으로 정렬됩니다.
+    - 기사 체크 및 요약 상태는 링크 기반 key로 고정되어 재렌더링 시 깨지지 않습니다.
     """
     import hashlib
     from collections import OrderedDict
@@ -686,28 +686,27 @@ def render_articles_with_single_summary_and_telegram(
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
-    # 1. results를 중복 없는 {keyword: articles}로 보장 (순서 안정화)
+
+    # 1. 중복 제거 + 날짜 내림차순 정렬
     unique_results = OrderedDict()
     for keyword, articles in results.items():
         if keyword not in unique_results:
-            # 기사의 날짜를 내림차순 정렬(최신 뉴스 top)
-            sorted_articles = sorted(articles, key=lambda x: x["date"], reverse=True)
+            sorted_articles = sorted(articles, key=lambda x: x.get("date", ""), reverse=True)
             unique_results[keyword] = sorted_articles
 
-    # 2. 현재 화면의 키워드 리스트(순서) 저장
     current_keywords = list(unique_results.keys())
 
-    # 3. 세션 상태: 기사 체크 및 더보기 정보(키워드 단위) 일치시켜 안정화
+    # 2. 키워드 목록 변경 시 상태 초기화
     if (
         "render_articles_last_keywords" not in st.session_state or
         st.session_state["render_articles_last_keywords"] != current_keywords
     ):
-        # 검색/필터/날짜/섹터 등 변경 시 상태 초기화
         st.session_state.article_checked = {}
         st.session_state.show_limit = {k: 5 for k in current_keywords}
+        st.session_state.selected_articles = []
         st.session_state["render_articles_last_keywords"] = current_keywords
 
-    # 4. 본격 렌더링
+    # 3. 왼쪽: 기사 카드
     col_list, col_summary = st.columns([1, 1])
     with col_list:
         st.markdown("### 검색 결과")
@@ -720,12 +719,12 @@ def render_articles_with_single_summary_and_telegram(
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
-                        # 기사별 해시 기반 고유 체크/요약 key
-                        link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
+                        link_hash = hashlib.md5(article["link"].encode("utf-8")).hexdigest()
                         key = f"{keyword}_{link_hash}"
                         checkbox_key = f"news_{key}"
                         cache_key = f"summary_{key}"
 
+                        # 체크박스
                         checked = st.checkbox(
                             "선택",
                             value=st.session_state.article_checked.get(checkbox_key, False),
@@ -733,11 +732,14 @@ def render_articles_with_single_summary_and_telegram(
                         )
                         st.session_state.article_checked[checkbox_key] = checked
 
+                        # 제목/링크
                         st.markdown(
-                            f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
+                            f"**[{article['title']}]({article['link']})**",
+                            unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
 
+                        # 감성배지 (요약이 있어야 보여줌)
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -747,12 +749,13 @@ def render_articles_with_single_summary_and_telegram(
                                     unsafe_allow_html=True
                                 )
 
-            # 더보기 버튼: 키워드별 고유 key
+            # 더보기 버튼
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
 
+    # 4. 오른쪽: 요약된 기사 영역
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
@@ -760,16 +763,17 @@ def render_articles_with_single_summary_and_telegram(
         for keyword in current_keywords:
             articles = unique_results[keyword]
             limit = st.session_state.show_limit.get(keyword, 5)
+
             for idx, article in enumerate(articles[:limit]):
-                link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
+                link_hash = hashlib.md5(article["link"].encode("utf-8")).hexdigest()
                 key = f"{keyword}_{link_hash}"
                 checkbox_key = f"news_{key}"
                 cache_key = f"summary_{key}"
+
                 if st.session_state.article_checked.get(checkbox_key, False):
-                    # 요약/감성 캐싱
                     if cache_key not in st.session_state:
                         one_line, summary, sentiment, full_text = summarize_article_from_url(
-                            article['link'], article['title'], do_summary=enable_summary
+                            article["link"], article["title"], do_summary=enable_summary
                         )
                         st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
                     else:
@@ -777,16 +781,17 @@ def render_articles_with_single_summary_and_telegram(
 
                     selected_articles.append({
                         "키워드": keyword,
-                        "기사제목": article.get("title", ""),
-                        "날짜": article.get("date", ""),
-                        "링크": article.get("link", ""),
+                        "기사제목": article["title"],
+                        "날짜": article["date"],
+                        "링크": article["link"],
                         "한줄요약": one_line,
                         "감성": sentiment
                     })
 
                     with st.container(border=True):
                         st.markdown(
-                            f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
+                            f"**[{article['title']}]({article['link']})**",
+                            unsafe_allow_html=True
                         )
                         st.markdown(f"- 날짜/출처: {article['date']} | {article['source']}")
                         if enable_summary:
@@ -796,6 +801,7 @@ def render_articles_with_single_summary_and_telegram(
                             unsafe_allow_html=True
                         )
 
+        # 선택 기사 저장
         st.session_state.selected_articles = selected_articles
         st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
