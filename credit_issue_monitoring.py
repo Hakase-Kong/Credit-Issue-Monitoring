@@ -246,8 +246,9 @@ def get_industry_majors_from_favorites(selected_categories):
 
 # --- 카테고리 선택 시 산업대분류 SessionState에 자동 반영 ---
 def update_industry_majors_from_favorites(selected_categories):
+    # 세션 상태에 직접 쓰는 대신 이 함수는 산업 대분류 리스트를 리턴만 하도록 변경
     majors = get_industry_majors_from_favorites(selected_categories)
-    st.session_state["industry_majors"] = majors
+    return majors
 
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
@@ -268,11 +269,18 @@ with col_kw_btn:
 st.markdown("**⭐ 즐겨찾기 카테고리 선택**")
 col_cat_input, col_cat_btn = st.columns([0.8, 0.2])
 with col_cat_input:
-    selected_categories = st.multiselect("카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.", list(favorite_categories.keys()), key="cat_multi")
-    # 카테고리 선택 시 산업 대분류 자동 선택
-    update_industry_majors_from_favorites(selected_categories)
+    selected_categories = st.multiselect(
+        "카테고리 선택 시 자동으로 즐겨찾기 키워드에 반영됩니다.",
+        list(favorite_categories.keys()),
+        key="cat_multi"
+    )
+    # update_industry_majors_from_favorites() 함수 사용하여 리턴된 값을 받아서
+    # 직접 st.session_state["industry_majors"] 할당하는 부분 제거, 대신 변수에 저장
+    industry_majors_from_favorites = update_industry_majors_from_favorites(selected_categories)
 with col_cat_btn:
     category_search_clicked = st.button("🔍 검색", key="cat_search_btn", help="카테고리로 검색", use_container_width=True)
+
+# 세션 상태 favorite_keywords 업데이트 부분, 그대로 유지
 for cat in selected_categories:
     st.session_state.favorite_keywords.update(favorite_categories[cat])
 
@@ -290,13 +298,13 @@ with st.expander("🏭 산업별 필터 옵션"):
     use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
     with col_major:
-        selected_majors = st.multiselect(
-            "대분류(산업)",
-            list(industry_filter_categories.keys()),
+        selected_majors = st.session_state.get("industry_majors", []),
             key="industry_majors",
-            default=st.session_state["industry_majors"]
+            # 기존 session_state["industry_majors"] 넣어 초기값 유지
+            default=st.session_state.get("industry_majors", [])  # 단순 조회만
         )
-        st.session_state["industry_majors"] = selected_majors
+        # ↓ 세션 상태 직접 덮어쓰기 제거!
+        # st.session_state["industry_majors"] = selected_majors  # ← 이 줄 삭제
     with col_sub:
         sub_options = []
         for major in selected_majors:
