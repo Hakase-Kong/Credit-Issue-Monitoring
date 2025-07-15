@@ -618,8 +618,9 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
             with st.container(border=True):
-                st.markdown(f"**[{keyword}]**")
-                limit = st.session_state.show_limit.get(keyword, 5)
+                if keyword not in st.session_state.show_limit:
+                    st.session_state.show_limit[keyword] = 5
+                    limit = st.session_state.show_limit[keyword]
 
                 # ✅ 날짜 필터 적용
                 articles = [
