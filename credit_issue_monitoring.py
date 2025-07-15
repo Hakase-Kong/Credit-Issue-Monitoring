@@ -850,4 +850,3 @@ if st.session_state.search_results:
         show_sentiment_badge=st.session_state.get("show_sentiment_badge", False),
         enable_summary=st.session_state.get("enable_summary", False)
     )
-.
