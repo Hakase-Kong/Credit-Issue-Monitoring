@@ -673,6 +673,10 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
+    """
+    카드형 뉴스/요약/감성분석 결과를 Streamlit에 출력하는 함수.
+    더보기 버튼의 key 중복 문제를 방지하기 위해 keyword+고유해시 조합을 사용합니다.
+    """
     import hashlib
 
     SENTIMENT_CLASS = {
@@ -734,9 +738,10 @@ def render_articles_with_single_summary_and_telegram(
 
                         article_global_idx += 1
 
-            # 더보기 버튼 (rerun 필요)
+            # 더보기 버튼 (key 중복 방지: keyword+해시)
             if limit < len(articles):
-                if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
+                keyword_hash = hashlib.md5(keyword.encode("utf-8")).hexdigest()[:8]
+                if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}_{keyword_hash}"):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
 
