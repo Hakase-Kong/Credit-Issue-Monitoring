@@ -730,6 +730,13 @@ def render_articles_with_single_summary_and_telegram(
                                 )
                         article_global_idx += 1  # 전역 인덱스 증가
 
+            # --- 더보기 버튼 추가 ---
+            if limit < len(articles):
+                if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
+                    st.session_state.show_limit[keyword] = limit + 5
+                    st.experimental_rerun()
+
+
 # --- 검색 트리거 ---
 search_clicked = False
 if keywords_input:
