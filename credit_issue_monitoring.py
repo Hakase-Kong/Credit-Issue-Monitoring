@@ -571,7 +571,17 @@ def article_passes_all_filters(article):
                 all_keywords.extend(favorite_categories[cat])
         if not article_contains_exact_keyword(article, all_keywords):
             return False
+
+    # ✅ 날짜 범위 필터 추가
+    try:
+        pub_date = datetime.strptime(article['date'], '%Y-%m-%d').date()
+        if pub_date < st.session_state.get("start_date", datetime.today().date()) or pub_date > st.session_state.get("end_date", datetime.today().date()):
+            return False
+    except:
+        return False
+
     return or_keyword_filter(article, *filters)
+
 
 def safe_title(val):
     if pd.isnull(val) or str(val).strip() == "" or str(val).lower() == "nan" or str(val) == "0":
@@ -634,6 +644,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     }
     if "article_checked" not in st.session_state:
         st.session_state.article_checked = {}
+
     col_list, col_summary = st.columns([1, 1])
     with col_list:
         st.markdown("### 기사 요약 결과")
@@ -641,6 +652,13 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
                 limit = st.session_state.show_limit.get(keyword, 5)
+
+                # ✅ 날짜 필터 적용
+                articles = [
+                    a for a in articles
+                    if article_passes_all_filters(a)
+                ]
+
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
                     key = f"{keyword}_{idx}_{unique_id}"
@@ -671,20 +689,25 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     with cols[1]:
                         st.markdown(md_line, unsafe_allow_html=True)
                     st.session_state.article_checked[key] = checked
+
                 if limit < len(articles):
                     if st.button("더보기", key=f"more_{keyword}"):
                         st.session_state.show_limit[keyword] += 10
                         st.rerun()
+
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         with st.container(border=True):
             selected_articles = []
-            def safe_title_for_append(val):
-                if val is None or str(val).strip() == "" or str(val).lower() == "nan" or str(val) == "0":
-                    return "제목없음"
-                return str(val)
             for keyword, articles in results.items():
                 limit = st.session_state.show_limit.get(keyword, 5)
+
+                # ✅ 날짜 필터 적용
+                articles = [
+                    a for a in articles
+                    if article_passes_all_filters(a)
+                ]
+
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
                     key = f"{keyword}_{idx}_{unique_id}"
@@ -699,7 +722,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                             st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
                         selected_articles.append({
                             "키워드": keyword,
-                            "기사제목": safe_title_for_append(article.get('title')),
+                            "기사제목": safe_title(article.get('title')),
                             "요약": one_line,
                             "요약본": summary,
                             "감성": sentiment,
@@ -722,9 +745,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                         st.markdown("---")
             st.session_state.selected_articles = selected_articles
             st.write(f"선택된 기사 개수: {len(selected_articles)}")
-            excel_company_order = []
-            for cat in ["국/공채", "공공기관", "보험사", "5대금융지주", "5대시중은행", "카드사", "캐피탈", "지주사", "에너지", "발전", "자동차", "전기/전자", "소비재", "비철/철강", "석유화학", "건설", "특수채"]:
-                excel_company_order.extend(excel_company_categories.get(cat, []))
+
             if st.session_state.selected_articles:
                 excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
                     st.session_state.selected_articles,
