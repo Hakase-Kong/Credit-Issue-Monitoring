@@ -539,14 +539,24 @@ def is_english(text):
 
 def process_keywords_parallel(keyword_list, start_date, end_date, require_keyword_in_title=False):
     progress_placeholder = st.empty()
-    st.session_state.raw_articles = {}
+
+    # 🔒 기존 검색 결과가 있다면 유지
+    if "raw_articles" not in st.session_state:
+        st.session_state.raw_articles = {}
+    if "search_results" not in st.session_state:
+        st.session_state.search_results = {}
+    if "show_limit" not in st.session_state:
+        st.session_state.show_limit = {}
+
     search_results = {}
+
     def fetch_for_keyword(k):
         if is_english(k):
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         return k, articles
+
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(fetch_for_keyword, k): k for k in keyword_list}
         for i, future in enumerate(futures):
@@ -556,8 +566,12 @@ def process_keywords_parallel(keyword_list, start_date, end_date, require_keywor
             if k not in st.session_state.show_limit:
                 st.session_state.show_limit[k] = 5
             progress_placeholder.info(f"'{k}' 뉴스 {len(articles)}건 수집 완료 ({i+1}/{len(keyword_list)})")
+
+    # ✅ 세션에 결과 저장
     st.session_state.search_results = search_results
     progress_placeholder.empty()
+
+    # 렌더링
     render_articles_with_single_summary_and_telegram(
         search_results,
         st.session_state.show_limit,
@@ -686,8 +700,9 @@ def render_articles_with_single_summary_and_telegram(
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
+                    # ✅ rerun만 호출, 검색 결과는 유지됨
                     st.rerun()
-
+        
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
@@ -746,36 +761,41 @@ def render_articles_with_single_summary_and_telegram(
             )
 
 # --- 검색 트리거 ---
-search_clicked = False
+search_triggered = False
 if keywords_input:
     keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
     if len(keyword_list) > 10:
         st.warning("키워드는 최대 10개까지 입력 가능합니다.")
-    else:
-        search_clicked = True
+    elif search_clicked:
+        search_triggered = True
+        st.session_state.search_triggered = True
+        st.session_state["keyword_list"] = keyword_list
 
-if search_clicked or st.session_state.get("search_triggered"):
-    keyword_list = [k.strip() for k in keywords_input.split(",") if k.strip()]
-    if len(keyword_list) > 10:
-        st.warning("키워드는 최대 10개까지 입력 가능합니다.")
-    else:
+# --- 키워드 검색 실행 ---
+if st.session_state.get("search_triggered", False):
+    keyword_list = st.session_state.get("keyword_list", [])
+    if keyword_list:
         with st.spinner("뉴스 검색 중..."):
-            process_keywords_parallel(keyword_list, st.session_state["start_date"], st.session_state["end_date"], require_keyword_in_title=st.session_state.get("require_keyword_in_title", False))
+            process_keywords_parallel(
+                keyword_list,
+                st.session_state["start_date"],
+                st.session_state["end_date"],
+                require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
+            )
     st.session_state.search_triggered = False
 
+# --- 카테고리 검색 실행 ---
 if category_search_clicked and selected_categories:
     with st.spinner("뉴스 검색 중..."):
         keywords = set()
         for cat in selected_categories:
             keywords.update(favorite_categories[cat])
-        process_keywords_parallel(
-            sorted(keywords),
-            st.session_state["start_date"],
-            st.session_state["end_date"],
-            require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
-        )
+        st.session_state["keyword_list"] = sorted(keywords)
+        st.session_state.search_triggered = True
+        st.rerun()  # ✅ rerun을 통해 위 검색 트리거가 실행됨
 
-if st.session_state.search_results:
+# --- 기존 검색 결과가 있을 경우 필터링 후 렌더링 ---
+if st.session_state.get("search_results"):
     filtered_results = {}
     for keyword, articles in st.session_state.search_results.items():
         filtered_articles = [
@@ -785,6 +805,7 @@ if st.session_state.search_results:
         ]
         if filtered_articles:
             filtered_results[keyword] = filtered_articles
+
     render_articles_with_single_summary_and_telegram(
         filtered_results,
         st.session_state.show_limit,
