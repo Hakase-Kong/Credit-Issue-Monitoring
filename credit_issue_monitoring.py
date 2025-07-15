@@ -621,6 +621,7 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
 
         for keyword, articles in results.items():
             with st.container(border=True):
+                st.markdown(f"**🔹 {keyword}**")  # ✅ 키워드 표시
                 # 🔧 limit은 if 관계없이 항상 정의
                 if keyword not in st.session_state.show_limit:
                     st.session_state.show_limit[keyword] = 5
@@ -663,9 +664,13 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                         st.markdown(md_line, unsafe_allow_html=True)
                     st.session_state.article_checked[key] = checked
 
+                st.write(f"총 {len(articles)}개 중 {limit}개 표시 중")
+
                 if limit < len(articles):
-                    if st.button("더보기", key=f"more_{keyword}"):
-                        st.session_state.show_limit[keyword] += 10
+                    with st.form(key=f"more_form_{keyword}_{limit}", clear_on_submit=True):
+                        submitted = st.form_submit_button(label="더보기")
+                        if submitted:
+                            st.session_state.show_limit[keyword] += 10
 
     # 🪄 선택된 기사 요약 영역
     with col_summary:
