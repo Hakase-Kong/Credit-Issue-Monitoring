@@ -298,13 +298,12 @@ with st.expander("🏭 산업별 필터 옵션"):
     use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
     with col_major:
-        selected_majors = st.session_state.get("industry_majors", []),
+        selected_majors = st.multiselect(
+            "대분류(산업)",
+            list(industry_filter_categories.keys()),
             key="industry_majors",
-            # 기존 session_state["industry_majors"] 넣어 초기값 유지
-            default=st.session_state.get("industry_majors", [])  # 단순 조회만
+            default=st.session_state.get("industry_majors", [])
         )
-        # ↓ 세션 상태 직접 덮어쓰기 제거!
-        # st.session_state["industry_majors"] = selected_majors  # ← 이 줄 삭제
     with col_sub:
         sub_options = []
         for major in selected_majors:
