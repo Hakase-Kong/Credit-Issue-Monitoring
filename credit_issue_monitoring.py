@@ -11,6 +11,7 @@ import newspaper
 import difflib
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+from collections import OrderedDict
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -30,7 +31,6 @@ st.markdown("""
 
 # --- 중복 없는 기사별 고유 key 생성 함수 ---
 def make_unique_key(keyword, article_link, article_title=None, article_date=None):
-    # 링크가 없으면 title+date로 해시 생성
     if not article_link:
         base = f"{keyword}_{article_title or ''}_{article_date or ''}"
         link_hash = hashlib.md5(base.encode('utf-8')).hexdigest()
@@ -170,7 +170,6 @@ common_filter_categories = {
     ]
 }
 
-# --- 공통 필터 체크박스 UI 함수 ---
 def render_common_filter_checkboxes(common_filter_categories):
     selected_filters = {}
     for major, subs in common_filter_categories.items():
@@ -182,7 +181,7 @@ def render_common_filter_checkboxes(common_filter_categories):
                 checked = st.checkbox(
                     label=sub,
                     key=f"common_filter_{major}_{sub}",
-                    value=True,  # 기본값: 모두 선택
+                    value=True,
                     help=None,
                     label_visibility="visible"
                 )
@@ -673,10 +672,20 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
+    """
+    카드형 뉴스/요약/감성분석 UI를 안정적으로 렌더링하는 Streamlit 함수.
+    - 중복 키워드 없이, 리스트 순서 일치
+    - 체크/더보기 key: keyword+링크 해시
+    - 상태: 새로운 필터/검색/날짜 때마다 강제 초기화
+    """
     import hashlib
     from collections import OrderedDict
 
-    # 중복 없는 최신순 정렬된 results
+    SENTIMENT_CLASS = {
+        "긍정": "sentiment-positive",
+        "부정": "sentiment-negative"
+    }
+    # unique_results 및 키워드 순서 고정
     unique_results = OrderedDict()
     for keyword, articles in results.items():
         if keyword not in unique_results:
@@ -685,8 +694,7 @@ def render_articles_with_single_summary_and_telegram(
             )
 
     current_keywords = list(unique_results.keys())
-
-    # 상태값 초기화/동기화
+    # 화면 변화시 상태 강제 리셋
     if (
         "render_articles_last_keywords" not in st.session_state or
         st.session_state["render_articles_last_keywords"] != current_keywords
@@ -697,7 +705,6 @@ def render_articles_with_single_summary_and_telegram(
         st.session_state["render_articles_last_keywords"] = current_keywords
 
     col_list, col_summary = st.columns([1, 1])
-
     with col_list:
         st.markdown("### 검색 결과")
         for keyword in current_keywords:
@@ -722,7 +729,6 @@ def render_articles_with_single_summary_and_telegram(
                             unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
-
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -762,7 +768,6 @@ def render_articles_with_single_summary_and_telegram(
                         "한줄요약": one_line,
                         "감성": sentiment
                     })
-
                     with st.container(border=True):
                         st.markdown(
                             f"**[{article['title']}]({article['link']})**",
@@ -788,6 +793,7 @@ def render_articles_with_single_summary_and_telegram(
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
+# --- (나머지 함수: fetch/news filter etc는 기존과 동일, 생략없이 위 코드 상단 포함)
 
 # --- 검색 트리거 ---
 search_clicked = False
