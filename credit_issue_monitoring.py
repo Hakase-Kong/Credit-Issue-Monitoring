@@ -707,7 +707,7 @@ def render_articles_with_single_summary_and_telegram(
                         checkbox_key = f"news_{key}"
                         cache_key = f"summary_{key}"
 
-                        # 체크박스
+                        # 체크박스 (rerun 없음)
                         checked = st.checkbox(
                             "선택",
                             value=st.session_state.article_checked.get(checkbox_key, False),
@@ -722,7 +722,7 @@ def render_articles_with_single_summary_and_telegram(
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
 
-                        # 감성 배지
+                        # 감성 배지 표시 (요약 캐시가 있을 경우)
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -731,9 +731,10 @@ def render_articles_with_single_summary_and_telegram(
                                     f"<span class='sentiment-badge {sentiment_class}'>({sentiment})</span>",
                                     unsafe_allow_html=True
                                 )
+
                         article_global_idx += 1
 
-            # 더보기 버튼
+            # 더보기 버튼 (rerun 필요)
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
@@ -779,7 +780,8 @@ def render_articles_with_single_summary_and_telegram(
                             unsafe_allow_html=True
                         )
                         st.markdown(f"- 날짜/출처: {article['date']} | {article['source']}")
-                        st.markdown(f"- 한 줄 요약: {one_line}")
+                        if enable_summary:
+                            st.markdown(f"- 한 줄 요약: {one_line}")
                         st.markdown(
                             f"- 감성분석: <span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
                             unsafe_allow_html=True
