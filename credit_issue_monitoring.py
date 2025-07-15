@@ -244,6 +244,11 @@ def get_industry_majors_from_favorites(selected_categories):
             majors.add(major)
     return list(majors)
 
+# --- 카테고리 선택 시 산업대분류 SessionState에 자동 반영 ---
+def update_industry_majors_from_favorites(selected_categories):
+    majors = get_industry_majors_from_favorites(selected_categories)
+    st.session_state["industry_majors"] = majors
+
 # --- UI 시작 ---
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
