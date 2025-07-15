@@ -53,7 +53,7 @@ if "selected_articles" not in st.session_state:
 if "cat_major_autoset" not in st.session_state:
     st.session_state.cat_major_autoset = []
 
-# --- 즐겨찾기 카테고리(변경 금지/생략 없이 전체) ---
+# --- 즐겨찾기 카테고리(변경 금지) ---
 favorite_categories = {
     "국/공채": [],
     "공공기관": [],
@@ -125,7 +125,7 @@ excel_company_categories = {
     ]
 }
 
-# --- 공통 필터 옵션 ---
+# --- 공통 필터 옵션(대분류/소분류 없이 모두 적용) ---
 common_filter_categories = {
     "신용/등급": [
         "신용등급", "등급전망", "하락", "강등", "하향", "상향", "디폴트", "부실", "부도", "미지급", "수요 미달", "미매각", "제도 개편", "EOD"
@@ -153,7 +153,7 @@ ALL_COMMON_FILTER_KEYWORDS = []
 for keywords in common_filter_categories.values():
     ALL_COMMON_FILTER_KEYWORDS.extend(keywords)
 
-# --- 산업별 필터 옵션(전체 생략 없이) ---
+# --- 산업별 필터 옵션 ---
 industry_filter_categories = {
     "은행 및 금융지주": [
         "경영실태평가", "BIS", "CET1", "자본비율", "상각형 조건부자본증권", "자본확충", "자본여력", "자본적정성", "LCR",
@@ -240,7 +240,7 @@ def get_industry_majors_from_favorites(selected_categories):
             majors.add(major)
     return list(majors)
 
-# --- UI ---
+# --- UI 시작 ---
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
 with col_title:
@@ -292,7 +292,7 @@ with st.expander("🧩 공통 필터 옵션 (항상 적용됨)"):
         st.markdown(f"**{major}**: {', '.join(subs)}")
 
 with st.expander("🏭 산업별 필터 옵션"):
-    use_industry_filter = st.checkbox("이 필터 적용", value=False, key="use_industry_filter")
+    use_industry_filter = st.checkbox("이 필터 적용", value=True, key="use_industry_filter")
     col_major, col_sub = st.columns([1, 1])
     with col_major:
         selected_majors = st.multiselect(
@@ -475,29 +475,12 @@ def fetch_gnews_news(query, start_date=None, end_date=None, limit=100, require_k
 def is_english(text):
     return all(ord(c) < 128 for c in text if c.isalpha())
 
-def remove_duplicate_articles_by_title(articles, threshold=0.75):
-    unique_articles = []
-    titles = []
-    for article in articles:
-        title = article.get("title", "")
-        is_duplicate = False
-        for existing_title in titles:
-            similarity = difflib.SequenceMatcher(None, title, existing_title).ratio()
-            if similarity >= threshold:
-                is_duplicate = True
-                break
-        if not is_duplicate:
-            unique_articles.append(article)
-            titles.append(title)
-    return unique_articles
-
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
     for k in keyword_list:
         if is_english(k):
             articles = fetch_gnews_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
         else:
             articles = fetch_naver_news(k, start_date, end_date, require_keyword_in_title=require_keyword_in_title)
-        articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
         st.session_state.search_results[k] = articles
         if k not in st.session_state.show_limit:
             st.session_state.show_limit[k] = 5
@@ -655,7 +638,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
     with col_list:
         st.markdown("### 기사 요약 결과")
         for keyword, articles in results.items():
-            articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
             with st.container(border=True):
                 st.markdown(f"**[{keyword}]**")
                 limit = st.session_state.show_limit.get(keyword, 5)
@@ -702,7 +684,6 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                     return "제목없음"
                 return str(val)
             for keyword, articles in results.items():
-                articles = remove_duplicate_articles_by_title(articles, threshold=0.75)
                 limit = st.session_state.show_limit.get(keyword, 5)
                 for idx, article in enumerate(articles[:limit]):
                     unique_id = re.sub(r'\W+', '', article['link'])[-16:]
