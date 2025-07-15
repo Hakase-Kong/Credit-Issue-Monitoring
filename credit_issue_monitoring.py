@@ -734,7 +734,7 @@ def render_articles_with_single_summary_and_telegram(
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
-                    st.experimental_rerun()
+                    st.rerun()
 
 
 # --- 검색 트리거 ---
