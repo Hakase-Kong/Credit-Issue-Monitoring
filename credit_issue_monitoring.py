@@ -673,30 +673,20 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
-    """
-    카드형 뉴스 요약/감성분석을 안정적으로 렌더링합니다.
-    - results는 {keyword: articles} 구조여야 하며 keyword는 중복되지 않아야 합니다.
-    - 기사 리스트는 최신순으로 정렬됩니다.
-    - 기사 체크 및 요약 상태는 링크 기반 key로 고정되어 재렌더링 시 깨지지 않습니다.
-    """
     import hashlib
     from collections import OrderedDict
 
-    SENTIMENT_CLASS = {
-        "긍정": "sentiment-positive",
-        "부정": "sentiment-negative"
-    }
-
-    # 1. 중복 제거 + 날짜 내림차순 정렬
+    # 중복 없는 최신순 정렬된 results
     unique_results = OrderedDict()
     for keyword, articles in results.items():
         if keyword not in unique_results:
-            sorted_articles = sorted(articles, key=lambda x: x.get("date", ""), reverse=True)
-            unique_results[keyword] = sorted_articles
+            unique_results[keyword] = sorted(
+                articles, key=lambda x: x.get("date", ""), reverse=True
+            )
 
     current_keywords = list(unique_results.keys())
 
-    # 2. 키워드 목록 변경 시 상태 초기화
+    # 상태값 초기화/동기화
     if (
         "render_articles_last_keywords" not in st.session_state or
         st.session_state["render_articles_last_keywords"] != current_keywords
@@ -706,8 +696,8 @@ def render_articles_with_single_summary_and_telegram(
         st.session_state.selected_articles = []
         st.session_state["render_articles_last_keywords"] = current_keywords
 
-    # 3. 왼쪽: 기사 카드
     col_list, col_summary = st.columns([1, 1])
+
     with col_list:
         st.markdown("### 검색 결과")
         for keyword in current_keywords:
@@ -720,56 +710,42 @@ def render_articles_with_single_summary_and_telegram(
                 with col:
                     with st.container(border=True):
                         link_hash = hashlib.md5(article["link"].encode("utf-8")).hexdigest()
-                        key = f"{keyword}_{link_hash}"
-                        checkbox_key = f"news_{key}"
-                        cache_key = f"summary_{key}"
-
-                        # 체크박스
-                        checked = st.checkbox(
+                        checkbox_key = f"news_{keyword}_{link_hash}"
+                        cache_key = f"summary_{keyword}_{link_hash}"
+                        st.session_state.article_checked[checkbox_key] = st.checkbox(
                             "선택",
                             value=st.session_state.article_checked.get(checkbox_key, False),
                             key=checkbox_key
                         )
-                        st.session_state.article_checked[checkbox_key] = checked
-
-                        # 제목/링크
                         st.markdown(
                             f"**[{article['title']}]({article['link']})**",
                             unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
 
-                        # 감성배지 (요약이 있어야 보여줌)
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
-                                sentiment_class = SENTIMENT_CLASS.get(sentiment, "sentiment-negative")
                                 st.markdown(
-                                    f"<span class='sentiment-badge {sentiment_class}'>({sentiment})</span>",
+                                    f"<span class='sentiment-badge {'sentiment-positive' if sentiment=='긍정' else 'sentiment-negative'}'>({sentiment})</span>",
                                     unsafe_allow_html=True
                                 )
 
-            # 더보기 버튼
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
 
-    # 4. 오른쪽: 요약된 기사 영역
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
-
         for keyword in current_keywords:
             articles = unique_results[keyword]
             limit = st.session_state.show_limit.get(keyword, 5)
-
             for idx, article in enumerate(articles[:limit]):
                 link_hash = hashlib.md5(article["link"].encode("utf-8")).hexdigest()
-                key = f"{keyword}_{link_hash}"
-                checkbox_key = f"news_{key}"
-                cache_key = f"summary_{key}"
-
+                checkbox_key = f"news_{keyword}_{link_hash}"
+                cache_key = f"summary_{keyword}_{link_hash}"
                 if st.session_state.article_checked.get(checkbox_key, False):
                     if cache_key not in st.session_state:
                         one_line, summary, sentiment, full_text = summarize_article_from_url(
@@ -778,7 +754,6 @@ def render_articles_with_single_summary_and_telegram(
                         st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
                     else:
                         one_line, summary, sentiment, full_text = st.session_state[cache_key]
-
                     selected_articles.append({
                         "키워드": keyword,
                         "기사제목": article["title"],
@@ -797,15 +772,11 @@ def render_articles_with_single_summary_and_telegram(
                         if enable_summary:
                             st.markdown(f"- 한 줄 요약: {one_line}")
                         st.markdown(
-                            f"- 감성분석: <span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
+                            f"- 감성분석: <span class='sentiment-badge {'sentiment-positive' if sentiment=='긍정' else 'sentiment-negative'}'>({sentiment})</span>",
                             unsafe_allow_html=True
                         )
-
-        # 선택 기사 저장
         st.session_state.selected_articles = selected_articles
         st.write(f"선택된 기사 개수: {len(selected_articles)}")
-
-        # 엑셀 다운로드
         if selected_articles:
             excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
                 selected_articles, favorite_categories, excel_company_categories
