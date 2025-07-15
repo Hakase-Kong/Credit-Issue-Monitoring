@@ -673,45 +673,64 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
+    """
+    안전하고 일관된 뉴스 카드형 UI 렌더링 함수.
+    - results는 반드시 {keyword: articles}의 중복 없는 구조여야 하며,
+    - 더보기 및 체크박스 key는 keyword string 기준으로만 만듭니다.
+    """
+    import hashlib
+
+    # 1. 중복 없는 unique_results로 정렬/변환
+    unique_results = {}
+    for keyword, articles in results.items():
+        # 이미 나온 키워드는 한 번만 사용 (중복 시 무시)
+        if keyword not in unique_results:
+            unique_results[keyword] = articles
+
     SENTIMENT_CLASS = {
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
+
+    # 세션 상태 키 초기화
     if "article_checked" not in st.session_state:
         st.session_state.article_checked = {}
-
     if "selected_articles" not in st.session_state:
-        st.session_state.selected_articles = []
+        st.session_state.selected_articles = {}
 
     col_list, col_summary = st.columns([1, 1])
 
     with col_list:
         st.markdown("### 검색 결과")
-        # 여기! enumerate로 고유 index 추출
-        for k_idx, (keyword, articles) in enumerate(results.items()):
+        for keyword, articles in unique_results.items():
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
             card_cols = st.columns(2)
-
             for idx, article in enumerate(articles[:limit]):
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
+                        # 고유 기사 체크&요약 key
                         link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
-                        key = f"{keyword}_{idx}_{link_hash}"
+                        key = f"{keyword}_{link_hash}"
                         checkbox_key = f"news_{key}"
                         cache_key = f"summary_{key}"
+
                         checked = st.checkbox(
                             "선택",
                             value=st.session_state.article_checked.get(checkbox_key, False),
                             key=checkbox_key
                         )
                         st.session_state.article_checked[checkbox_key] = checked
+
+                        # 기사내용
                         st.markdown(
                             f"**[{article['title']}]({article['link']})**",
                             unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
+
+                        # 감성배지
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -721,24 +740,21 @@ def render_articles_with_single_summary_and_telegram(
                                     unsafe_allow_html=True
                                 )
 
-            # 더보기 버튼: k_idx로 완전 고유화!
+            # 더보기 버튼: keyword 기준 고유 key
             if limit < len(articles):
-                keyword_hash = hashlib.md5(keyword.encode("utf-8")).hexdigest()[:8]
-                key = f"show_more_{keyword}_{keyword_hash}_{k_idx}"
-                if st.button(f"더보기 ({keyword})", key=key):
+                if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
 
-    # --- 오른쪽: 선택된 기사 요약/감성분석 카드 ---
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
 
-        for keyword, articles in results.items():
+        for keyword, articles in unique_results.items():
             limit = st.session_state.show_limit.get(keyword, 5)
             for idx, article in enumerate(articles[:limit]):
                 link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
-                key = f"{keyword}_{idx}_{link_hash}"
+                key = f"{keyword}_{link_hash}"
                 checkbox_key = f"news_{key}"
                 cache_key = f"summary_{key}"
 
@@ -752,7 +768,6 @@ def render_articles_with_single_summary_and_telegram(
                     else:
                         one_line, summary, sentiment, full_text = st.session_state[cache_key]
 
-                    # 선택 기사 목록에 추가
                     selected_articles.append({
                         "키워드": keyword,
                         "기사제목": article.get("title", ""),
@@ -762,7 +777,6 @@ def render_articles_with_single_summary_and_telegram(
                         "감성": sentiment
                     })
 
-                    # 카드형 요약 출력
                     with st.container(border=True):
                         st.markdown(
                             f"**[{article['title']}]({article['link']})**",
@@ -776,7 +790,6 @@ def render_articles_with_single_summary_and_telegram(
                             unsafe_allow_html=True
                         )
 
-        # 세션에 저장
         st.session_state.selected_articles = selected_articles
         st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
@@ -791,6 +804,7 @@ def render_articles_with_single_summary_and_telegram(
                 file_name="news_summary.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 # --- 검색 트리거 ---
 search_clicked = False
