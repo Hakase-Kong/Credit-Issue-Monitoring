@@ -674,35 +674,45 @@ def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
     """
-    안전하고 일관된 뉴스 카드형 UI 렌더링 함수.
-    - results는 반드시 {keyword: articles}의 중복 없는 구조여야 하며,
-    - 더보기 및 체크박스 key는 keyword string 기준으로만 만듭니다.
+    카드형 뉴스/요약/감성분석 UI를 안정적으로 렌더링하는 Streamlit 함수.
+    - results는 반드시 {keyword: articles} 중복 없는 구조여야 하며,
+    - 더보기, 체크박스 key는 keyword(string) 및 기사 링크 기반 해시만 사용합니다.
+    - 검색/필터/날짜 변경 때, show_limit과 article_checked의 상태 초기화를 외부에서 철저히 관리해야 합니다!
     """
     import hashlib
-
-    # 1. 중복 없는 unique_results로 정렬/변환
-    unique_results = {}
-    for keyword, articles in results.items():
-        # 이미 나온 키워드는 한 번만 사용 (중복 시 무시)
-        if keyword not in unique_results:
-            unique_results[keyword] = articles
+    from collections import OrderedDict
 
     SENTIMENT_CLASS = {
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
+    # 1. results를 중복 없는 {keyword: articles}로 보장 (순서 안정화)
+    unique_results = OrderedDict()
+    for keyword, articles in results.items():
+        if keyword not in unique_results:
+            # 기사의 날짜를 내림차순 정렬(최신 뉴스 top)
+            sorted_articles = sorted(articles, key=lambda x: x["date"], reverse=True)
+            unique_results[keyword] = sorted_articles
 
-    # 세션 상태 키 초기화
-    if "article_checked" not in st.session_state:
+    # 2. 현재 화면의 키워드 리스트(순서) 저장
+    current_keywords = list(unique_results.keys())
+
+    # 3. 세션 상태: 기사 체크 및 더보기 정보(키워드 단위) 일치시켜 안정화
+    if (
+        "render_articles_last_keywords" not in st.session_state or
+        st.session_state["render_articles_last_keywords"] != current_keywords
+    ):
+        # 검색/필터/날짜/섹터 등 변경 시 상태 초기화
         st.session_state.article_checked = {}
-    if "selected_articles" not in st.session_state:
-        st.session_state.selected_articles = {}
+        st.session_state.show_limit = {k: 5 for k in current_keywords}
+        st.session_state["render_articles_last_keywords"] = current_keywords
 
+    # 4. 본격 렌더링
     col_list, col_summary = st.columns([1, 1])
-
     with col_list:
         st.markdown("### 검색 결과")
-        for keyword, articles in unique_results.items():
+        for keyword in current_keywords:
+            articles = unique_results[keyword]
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
             card_cols = st.columns(2)
@@ -710,7 +720,7 @@ def render_articles_with_single_summary_and_telegram(
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
-                        # 고유 기사 체크&요약 key
+                        # 기사별 해시 기반 고유 체크/요약 key
                         link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
                         key = f"{keyword}_{link_hash}"
                         checkbox_key = f"news_{key}"
@@ -723,14 +733,11 @@ def render_articles_with_single_summary_and_telegram(
                         )
                         st.session_state.article_checked[checkbox_key] = checked
 
-                        # 기사내용
                         st.markdown(
-                            f"**[{article['title']}]({article['link']})**",
-                            unsafe_allow_html=True
+                            f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
                         )
                         st.markdown(f"{article['date']} | {article['source']}")
 
-                        # 감성배지
                         if cache_key in st.session_state:
                             _, _, sentiment, _ = st.session_state[cache_key]
                             if show_sentiment_badge and sentiment:
@@ -740,7 +747,7 @@ def render_articles_with_single_summary_and_telegram(
                                     unsafe_allow_html=True
                                 )
 
-            # 더보기 버튼: keyword 기준 고유 key
+            # 더보기 버튼: 키워드별 고유 key
             if limit < len(articles):
                 if st.button(f"더보기 ({keyword})", key=f"show_more_{keyword}"):
                     st.session_state.show_limit[keyword] = limit + 5
@@ -750,14 +757,14 @@ def render_articles_with_single_summary_and_telegram(
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
 
-        for keyword, articles in unique_results.items():
+        for keyword in current_keywords:
+            articles = unique_results[keyword]
             limit = st.session_state.show_limit.get(keyword, 5)
             for idx, article in enumerate(articles[:limit]):
                 link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
                 key = f"{keyword}_{link_hash}"
                 checkbox_key = f"news_{key}"
                 cache_key = f"summary_{key}"
-
                 if st.session_state.article_checked.get(checkbox_key, False):
                     # 요약/감성 캐싱
                     if cache_key not in st.session_state:
@@ -779,8 +786,7 @@ def render_articles_with_single_summary_and_telegram(
 
                     with st.container(border=True):
                         st.markdown(
-                            f"**[{article['title']}]({article['link']})**",
-                            unsafe_allow_html=True
+                            f"**[{article['title']}]({article['link']})**", unsafe_allow_html=True
                         )
                         st.markdown(f"- 날짜/출처: {article['date']} | {article['source']}")
                         if enable_summary:
