@@ -701,7 +701,7 @@ def render_articles_with_single_summary_and_telegram(
                 col = card_cols[idx % 2]
                 with col:
                     with st.container(border=True):
-                        # ✅ 기사별 고유 키 생성 (링크 해시 포함)
+                        # 고유 키 생성 (링크 해시 포함)
                         link_hash = hashlib.md5(article['link'].encode('utf-8')).hexdigest()
                         key = f"{keyword}_{idx}_{link_hash}"
                         checkbox_key = f"news_{key}"
@@ -739,7 +739,7 @@ def render_articles_with_single_summary_and_telegram(
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
 
-    # --- 오른쪽: 선택된 기사 요약 카드 ---
+    # --- 오른쪽: 선택된 기사 요약/감성분석 카드 ---
     with col_summary:
         st.markdown("### 선택된 기사 요약/감성분석")
         selected_articles = []
@@ -785,68 +785,17 @@ def render_articles_with_single_summary_and_telegram(
                             unsafe_allow_html=True
                         )
 
+        # 세션에 저장
         st.session_state.selected_articles = selected_articles
         st.write(f"선택된 기사 개수: {len(selected_articles)}")
 
-        # 엑셀 다운로드 버튼
+        # 엑셀 다운로드
         if selected_articles:
             excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
                 selected_articles, favorite_categories, excel_company_categories
             )
             st.download_button(
-                label="엑셀 다운로드 (선택 기사 요약)",
-                data=excel_bytes,
-                file_name="news_summary.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-    # --- 선택된 기사 카드형 요약/감성분석 ---
-    with col_summary:
-        st.markdown("### 선택된 기사 요약/감성분석")
-        selected_articles = []
-        for keyword, articles in results.items():
-            limit = st.session_state.show_limit.get(keyword, 5)
-            for idx, article in enumerate(articles[:limit]):
-                key = f"{keyword}_{idx}_{idx}"
-                checkbox_key = f"news_{key}"
-                if st.session_state.article_checked.get(checkbox_key, False):
-                    cache_key = f"summary_{key}"
-                    if cache_key not in st.session_state:
-                        one_line, summary, sentiment, full_text = summarize_article_from_url(
-                            article['link'], article['title'], do_summary=enable_summary
-                        )
-                        st.session_state[cache_key] = (one_line, summary, sentiment, full_text)
-                    else:
-                        one_line, summary, sentiment, full_text = st.session_state[cache_key]
-                    selected_articles.append({
-                        "키워드": keyword,
-                        "기사제목": article.get("title", ""),
-                        "날짜": article.get("date", ""),
-                        "링크": article.get("link", ""),
-                        "한줄요약": one_line,
-                        "감성": sentiment
-                    })
-                    # --- 카드형 요약 ---
-                    with st.container(border=True):
-                        st.markdown(
-                            f"**[{article['title']}]({article['link']})**",
-                            unsafe_allow_html=True
-                        )
-                        st.markdown(f"- 날짜/출처: {article['date']} | {article['source']}")
-                        st.markdown(f"- 한 줄 요약: {one_line}")
-                        st.markdown(
-                            f"- 감성분석: <span class='sentiment-badge {SENTIMENT_CLASS.get(sentiment, 'sentiment-negative')}'>({sentiment})</span>",
-                            unsafe_allow_html=True
-                        )
-        st.session_state.selected_articles = selected_articles
-        st.write(f"선택된 기사 개수: {len(selected_articles)}")
-
-        if selected_articles:
-            excel_bytes = get_excel_download_with_favorite_and_excel_company_col(
-                selected_articles, favorite_categories, excel_company_categories
-            )
-            st.download_button(
-                label="엑셀 다운로드 (선택 기사 요약)",
+                label="📥 엑셀 다운로드 (선택 기사 요약)",
                 data=excel_bytes,
                 file_name="news_summary.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
