@@ -621,6 +621,8 @@ def render_articles_with_single_summary_and_telegram(results, show_limit, show_s
                 if keyword not in st.session_state.show_limit:
                     st.session_state.show_limit[keyword] = 5
                     limit = st.session_state.show_limit[keyword]
+                    articles = [a for a in articles if article_passes_all_filters(a)]
+                    for idx, article in enumerate(articles[:limit]):
 
                 # ✅ 날짜 필터 적용
                 articles = [
