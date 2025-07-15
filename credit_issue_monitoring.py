@@ -673,10 +673,13 @@ def get_excel_download_with_favorite_and_excel_company_col(summary_data, favorit
 def render_articles_with_single_summary_and_telegram(
     results, show_limit, show_sentiment_badge=True, enable_summary=True
 ):
+    import hashlib
+
     SENTIMENT_CLASS = {
         "긍정": "sentiment-positive",
         "부정": "sentiment-negative"
     }
+
     if "article_checked" not in st.session_state:
         st.session_state.article_checked = {}
 
@@ -687,7 +690,6 @@ def render_articles_with_single_summary_and_telegram(
 
     with col_list:
         st.markdown("### 검색 결과")
-        # 여기! enumerate로 고유 index 추출
         for k_idx, (keyword, articles) in enumerate(results.items()):
             limit = st.session_state.show_limit.get(keyword, 5)
             st.markdown(f"**[{keyword}]**")
@@ -721,10 +723,11 @@ def render_articles_with_single_summary_and_telegram(
                                     unsafe_allow_html=True
                                 )
 
-            # 더보기 버튼: k_idx로 완전 고유화!
+            # 🎯 완전 고유 key 생성: articles의 id를 key에 포함!
             if limit < len(articles):
                 keyword_hash = hashlib.md5(keyword.encode("utf-8")).hexdigest()[:8]
-                key = f"show_more_{keyword}_{keyword_hash}_{k_idx}"
+                articles_obj_id = id(articles)  # 메모리 주소 사용
+                key = f"show_more_{keyword}_{keyword_hash}_{k_idx}_{articles_obj_id}"
                 if st.button(f"더보기 ({keyword})", key=key):
                     st.session_state.show_limit[keyword] = limit + 5
                     st.rerun()
