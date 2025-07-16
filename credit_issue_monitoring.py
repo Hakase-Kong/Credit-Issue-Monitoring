@@ -314,7 +314,30 @@ with st.expander("🏭 산업별 필터 옵션"):
         )
 
 with st.expander("🔍 키워드 필터 옵션"):
-        require_exact_keyword_in_title_or_content = st.checkbox("키워드가 제목 또는 본문에 포함된 기사만 보기", value=True, key="require_exact_keyword_in_title_or_content")
+    require_exact_keyword_in_title_or_content = st.checkbox(
+        "키워드가 제목 또는 본문에 포함된 기사만 보기", value=True, key="require_exact_keyword_in_title_or_content"
+    )
+    remove_duplicate_articles = st.checkbox(
+        "중복 기사 제거 (제목 유사도 기반)", value=True, key="remove_duplicate_articles"
+    )
+
+def remove_duplicates_by_title(articles, threshold=0.7):
+    unique_articles = []
+    seen_titles = []
+
+    for article in articles:
+        title = article["title"]
+        is_duplicate = False
+        for seen in seen_titles:
+            similarity = difflib.SequenceMatcher(None, title, seen).ratio()
+            if similarity > threshold:
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            unique_articles.append(article)
+            seen_titles.append(title)
+    return unique_articles
+
 
 def extract_article_text(url):
     try:
@@ -498,6 +521,10 @@ if search_clicked or st.session_state.get("search_triggered"):
                 st.session_state["end_date"],
                 require_keyword_in_title=st.session_state.get("require_keyword_in_title", False)
             )
+            # ✅ 중복 기사 제거 옵션이 활성화된 경우 수행
+            if st.session_state.get("remove_duplicate_articles", False):
+                for k in st.session_state.search_results:
+                    st.session_state.search_results[k] = remove_duplicates_by_title(st.session_state.search_results[k])
     st.session_state.search_triggered = False
 
 if category_search_clicked and selected_categories:
