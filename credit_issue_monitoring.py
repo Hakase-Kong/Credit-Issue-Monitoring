@@ -244,7 +244,12 @@ def get_industry_majors_from_favorites(selected_categories):
 st.set_page_config(layout="wide")
 col_title, col_option1, col_option2 = st.columns([0.6, 0.2, 0.2])
 with col_title:
-    st.markdown("<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>📊 Credit Issue Monitoring</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<h1 style='color:#1a1a1a; margin-bottom:0.5rem;'>"
+        "<a href='https://credit-issue-monitoring.onrender.com/' target='_blank' style='text-decoration:none; color:#1a1a1a;'>"
+        "📊 Credit Issue Monitoring</a></h1>",
+        unsafe_allow_html=True
+    )
 with col_option1:
     show_sentiment_badge = st.checkbox("기사목록에 감성분석 배지 표시", value=False, key="show_sentiment_badge")
 with col_option2:
@@ -434,7 +439,7 @@ def fetch_naver_news(query, start_date=None, end_date=None, limit=1000, require_
                 "title": re.sub("<.*?>", "", title),
                 "link": item["link"],
                 "date": pub_date.strftime("%Y-%m-%d"),
-                "source": "Naver"
+                "source": item.get("source", "Naver")
             })
         if len(items) < 100:
             break
