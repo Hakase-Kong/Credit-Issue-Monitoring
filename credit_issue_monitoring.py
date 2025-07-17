@@ -482,7 +482,7 @@ def article_contains_exact_keyword(article, keywords):
     return False
 
 # --- 중복 기사 제거 함수 ---
-def is_similar(title1, title2, threshold=0.7):
+def is_similar(title1, title2, threshold=0.6):
     ratio = difflib.SequenceMatcher(None, title1, title2).ratio()
     return ratio >= threshold
 
