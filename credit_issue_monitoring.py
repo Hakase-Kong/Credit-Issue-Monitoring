@@ -9,6 +9,7 @@ import telepot
 from openai import OpenAI
 import newspaper
 import difflib
+from urllib.parse import urlparse
 
 # --- CSS 스타일 ---
 st.markdown("""
@@ -387,6 +388,12 @@ def summarize_and_sentiment_with_openai(text, do_summary=True):
         sentiment = '긍정' if sentiment.lower() == 'positive' else '부정'
     return one_line, summary, sentiment, text
 
+def infer_source_from_url(url):
+    domain = urlparse(url).netloc
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain
+
 NAVER_CLIENT_ID = "_qXuzaBGk_jQesRRPRvu"
 NAVER_CLIENT_SECRET = "lZc2gScgNq"
 TELEGRAM_TOKEN = "7033950842:AAFk4pSb5qtNj435Gf2B5-rPlFrlNqhZFuQ"
@@ -423,10 +430,12 @@ def fetch_naver_news(query, start_date=None, end_date=None, limit=1000, require_
         response = requests.get("https://openapi.naver.com/v1/search/news.json", headers=headers, params=params)
         if response.status_code != 200:
             break
+
         items = response.json().get("items", [])
         for item in items:
             title, desc = item["title"], item["description"]
             pub_date = datetime.strptime(item["pubDate"], "%a, %d %b %Y %H:%M:%S %z").date()
+
             if start_date and pub_date < start_date:
                 continue
             if end_date and pub_date > end_date:
@@ -435,16 +444,24 @@ def fetch_naver_news(query, start_date=None, end_date=None, limit=1000, require_
                 continue
             if exclude_by_title_keywords(re.sub("<.*?>", "", title), EXCLUDE_TITLE_KEYWORDS):
                 continue
+
+            # 언론사명 가져오기 + 기본값 처리 + 도메인 기반 추출 보완
+            source = item.get("source")
+            if not source or source.strip() == "":
+                source = infer_source_from_url(item.get("originallink", ""))
+                if not source:
+                    source = "Naver"
+
             articles.append({
                 "title": re.sub("<.*?>", "", title),
                 "link": item["link"],
                 "date": pub_date.strftime("%Y-%m-%d"),
-                "source": item.get("source", "Naver")
+                "source": source
             })
+
         if len(items) < 100:
             break
     return articles[:limit]
-
 
 def process_keywords(keyword_list, start_date, end_date, require_keyword_in_title=False):
     for k in keyword_list:
